@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain (Knowledge Base) - JStarReplyBot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81' },
+                        surface: { 800: '#1e293b', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .dark body {
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 15% 50%, rgba(79, 70, 229, 0.08), transparent 25%), radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.08), transparent 25%);
+            color: #f8fafc;
+        }
+
+        body {
+            background-color: #f8fafc;
+            background-image: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.05), transparent 25%), radial-gradient(circle at 85% 30%, rgba(79, 70, 229, 0.05), transparent 25%);
+            color: #1e293b;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            box-shadow: 0 4px 6px -1px rgba(148, 163, 184, 0.1);
+        }
+
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body class="p-8 min-h-screen">
+
+    <!-- Top Nav -->
+    <nav class="flex items-center justify-between mb-10">
+        <a href="home.html"
+            class="flex items-center gap-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Dashboard
+        </a>
+        <h1 class="font-bold text-xl text-slate-900 dark:text-white">Knowledge Base (The Brain)</h1>
+        <div class="w-8"></div> <!-- Spacer -->
+    </nav>
+
+    <div class="max-w-4xl mx-auto space-y-8">
+
+        <!-- Upload Zone -->
+        <div
+            class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-2xl p-12 flex flex-col items-center justify-center text-center transition-colors cursor-pointer bg-slate-50/50 dark:bg-surface-800/30 group">
+            <div
+                class="w-16 h-16 bg-brand-100 dark:bg-brand-500/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <i data-lucide="upload-cloud" class="w-8 h-8 text-brand-600 dark:text-brand-400"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Upload Business Documents</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 max-w-sm">Drag & drop PDF, TXT, or MD files here. The bot
+                will read them to answer questions.</p>
+            <button
+                class="mt-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                Select Files
+            </button>
+        </div>
+
+        <!-- Document List -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between px-2">
+                <h2 class="font-semibold text-slate-900 dark:text-white">Indexed Documents</h2>
+                <span class="text-xs text-slate-500">3 files • 1.2 MB total</span>
+            </div>
+
+            <div class="glass rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-white/5">
+
+                <!-- File Item -->
+                <div
+                    class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 group transition-colors">
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-500/10 flex items-center justify-center text-rose-500">
+                            <i data-lucide="file-text" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-slate-900 dark:text-white text-sm">Product_Catalog_2025.pdf</p>
+                            <p class="text-xs text-slate-500">Indexed 2 hours ago • 248 vectors</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                            class="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            title="Re-index">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                        <button
+                            class="p-2 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
+                            title="Delete">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- File Item -->
+                <div
+                    class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 group transition-colors">
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                            <i data-lucide="file-code" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-slate-900 dark:text-white text-sm">FAQ_Responses.txt</p>
+                            <p class="text-xs text-slate-500">Indexed yesterday • 42 vectors</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                            class="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                        <button
+                            class="p-2 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-lg text-slate-400 hover:text-rose-500 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <script> lucide.createIcons(); </script>
+</body>
+
+</html>

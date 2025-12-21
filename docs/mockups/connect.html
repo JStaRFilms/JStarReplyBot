@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect - JStarReplyBot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81' },
+                        surface: { 800: '#1e293b', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .dark body {
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 15% 50%, rgba(79, 70, 229, 0.08), transparent 25%), radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.08), transparent 25%);
+            color: #f8fafc;
+        }
+
+        body {
+            background-color: #f8fafc;
+            background-image: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.05), transparent 25%), radial-gradient(circle at 85% 30%, rgba(79, 70, 229, 0.05), transparent 25%);
+            color: #1e293b;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            box-shadow: 0 4px 6px -1px rgba(148, 163, 184, 0.1);
+        }
+
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body class="p-8 min-h-screen flex flex-col">
+
+    <!-- Top Nav -->
+    <nav class="flex items-center justify-between mb-16">
+        <a href="home.html" class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Dashboard
+        </a>
+    </nav>
+
+    <div class="flex-1 flex flex-col items-center justify-center">
+
+        <div class="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+
+            <!-- Instructions -->
+            <div class="space-y-8 order-2 md:order-1">
+                <div class="space-y-2">
+                    <h1 class="text-4xl font-bold text-slate-900 dark:text-white">Connect WhatsApp</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-lg">Scan the QR code to link your account.</p>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="flex gap-4 items-start">
+                        <div
+                            class="w-8 h-8 rounded-full bg-slate-200 dark:bg-surface-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                            1</div>
+                        <div>
+                            <h3 class="font-medium text-slate-900 dark:text-white">Open WhatsApp on your phone</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">Go to Settings > Linked Devices</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 items-start">
+                        <div
+                            class="w-8 h-8 rounded-full bg-slate-200 dark:bg-surface-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                            2</div>
+                        <div>
+                            <h3 class="font-medium text-slate-900 dark:text-white">Tap "Link a Device"</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">You might need to use FaceID or
+                                Fingerprint.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 items-start">
+                        <div
+                            class="w-8 h-8 rounded-full bg-slate-200 dark:bg-surface-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                            3</div>
+                        <div>
+                            <h3 class="font-medium text-slate-900 dark:text-white">Point your camera at the screen</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">The app will connect automatically.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg flex gap-3 text-sm text-amber-800 dark:text-amber-200">
+                    <i data-lucide="info" class="w-5 h-5 shrink-0 text-amber-500"></i>
+                    <p>Your session is stored locally on your device. We never see your messages.</p>
+                </div>
+            </div>
+
+            <!-- QR Code Area -->
+            <div class="order-1 md:order-2 flex flex-col items-center">
+                <div class="glass p-8 rounded-3xl relative group">
+                    <!-- Scan line animation -->
+                    <div
+                        class="absolute top-0 left-0 w-full h-1 bg-brand-500 shadow-[0_0_20px_rgba(99,102,241,0.5)] animate-[scan_2.5s_ease-in-out_infinite] opacity-50">
+                    </div>
+
+                    <div class="w-64 h-64 bg-white rounded-xl flex items-center justify-center overflow-hidden">
+                        <!-- Placeholder QR -->
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=JStarReplyBot-Auth-Token"
+                            alt="QR Code" class="opacity-90">
+                    </div>
+                </div>
+                <p class="mt-6 flex items-center gap-2 text-sm text-emerald-500 font-medium animate-pulse">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Waiting for scan...
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <style>
+        @keyframes scan {
+            0% {
+                top: 10%;
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 90%;
+                opacity: 0;
+            }
+        }
+    </style>
+    <script> lucide.createIcons(); </script>
+</body>
+
+</html>

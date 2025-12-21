@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - JStarReplyBot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81' },
+                        surface: { 800: '#1e293b', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .dark body {
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 15% 50%, rgba(79, 70, 229, 0.08), transparent 25%), radial-gradient(circle at 85% 30%, rgba(99, 102, 241, 0.08), transparent 25%);
+            color: #f8fafc;
+        }
+
+        body {
+            background-color: #f8fafc;
+            background-image: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.05), transparent 25%), radial-gradient(circle at 85% 30%, rgba(79, 70, 229, 0.05), transparent 25%);
+            color: #1e293b;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            box-shadow: 0 4px 6px -1px rgba(148, 163, 184, 0.1);
+        }
+
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #6366f1;
+        }
+
+        .toggle-checkbox:checked+.toggle-label {
+            background-color: #6366f1;
+        }
+    </style>
+</head>
+
+<body class="p-8 min-h-screen">
+
+    <nav class="flex items-center justify-between mb-10">
+        <a href="home.html"
+            class="flex items-center gap-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Dashboard
+        </a>
+        <h1 class="font-bold text-xl text-slate-900 dark:text-white">Settings</h1>
+        <div class="w-8"></div>
+    </nav>
+
+    <div class="max-w-2xl mx-auto space-y-8">
+
+        <!-- Automation Mode -->
+        <section class="space-y-4">
+            <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Automation</h2>
+            <div class="glass p-6 rounded-2xl space-y-6">
+
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-medium text-slate-900 dark:text-white">Draft Mode (Semi-Auto)</h3>
+                        <p class="text-xs text-slate-500">Approvals required before sending. Safer for new users.</p>
+                    </div>
+                    <!-- Toggle -->
+                    <div
+                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" id="draft-mode"
+                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 dark:border-slate-600 checked:right-0 checked:border-brand-500" />
+                        <label for="draft-mode"
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 dark:bg-surface-800 cursor-pointer"></label>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between opacity-50 pointer-events-none">
+                    <div>
+                        <h3 class="font-medium text-slate-900 dark:text-white">Fully Autonomous</h3>
+                        <p class="text-xs text-slate-500">Bot replies instantly without oversight.</p>
+                    </div>
+                    <div class="text-xs font-bold text-slate-400">OFF</div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Filters -->
+        <section class="space-y-4">
+            <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Targeting & Filters</h2>
+            <div class="glass p-6 rounded-2xl space-y-6">
+
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-medium text-slate-900 dark:text-white">Ignore Groups</h3>
+                        <p class="text-xs text-slate-500">Do not reply to group chats automatically.</p>
+                    </div>
+                    <div
+                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" checked id="ignore-groups"
+                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-brand-500 checked:right-0 checked:border-brand-500" />
+                        <label for="ignore-groups"
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-brand-500 cursor-pointer"></label>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-medium text-slate-900 dark:text-white">Unsaved Contacts Only</h3>
+                        <p class="text-xs text-slate-500">Only reply to new numbers (ignore saved friends/family).</p>
+                    </div>
+                    <div
+                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="unsaved-only"
+                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 dark:border-slate-600 checked:right-0 checked:border-brand-500" />
+                        <label for="unsaved-only"
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 dark:bg-surface-800 cursor-pointer"></label>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- General Config -->
+        <section class="space-y-4">
+            <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">System</h2>
+            <div class="glass p-6 rounded-2xl space-y-6">
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700 dark:text-slate-300">License Key</label>
+                    <div class="flex gap-2">
+                        <input type="password" value="XXXXXXXX-XXXX-XXXX-XXXX"
+                            class="flex-1 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+                        <button
+                            class="px-4 py-2 bg-slate-200 dark:bg-surface-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-300 dark:hover:bg-white/10 transition-colors">Verifying...</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700 dark:text-slate-300">System Prompt
+                        (Persona)</label>
+                    <textarea
+                        class="w-full h-32 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none font-mono text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">You are JStar, a helpful support assistant for [Business Name]. Be polite, concise, and professional. Use emojis sparingly.</textarea>
+                    <p class="text-xs text-slate-500">This instruction guides the AI's personality and behavior.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Save Actions -->
+        <div class="flex justify-end pt-4">
+            <button
+                class="bg-brand-600 hover:bg-brand-500 text-white px-8 py-3 rounded-xl font-medium shadow-lg shadow-brand-500/20 active:scale-95 transition-all">
+                Save Changes
+            </button>
+        </div>
+
+    </div>
+
+    <script> lucide.createIcons(); </script>
+</body>
+
+</html>
