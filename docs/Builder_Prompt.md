@@ -41,6 +41,20 @@ Before implementing any page, open the corresponding mockup file and replicate i
 4. **UI Skeleton:** Create a beautiful "Glassmorphism" sidebar layout with tabs: "Home", "Brain", "Settings", "Logs".
 5. **IPC Bridge:** Create the secure bridge for the Renderer to say `window.electron.startBot()` and receive `console-logs` from the main process.
 
+## Phase 2: Core Features (The Vibe)
+- **The Brain (RAG):**
+  - Implement `VectorStore` class using **LanceDB** or **Voyager** (Local vectors).
+  - Use `@google/generative-ai` to fetch embeddings.
+  - Create `KnowledgeBase` UI tab to upload/index text.
+- **Bot Logic:**
+  - **Draft Mode:** Implement toggle `start({ draftMode: true })`. If true, emit `proposed-reply` event instead of sending.
+  - **Message Splitting:** Split responses > 200 chars into multiple bubbles with human-like delays.
+  - **Quoted Replies:** Use `msg.reply()` to thread responses.
+  - **Filters:** Check `isGroup` and `isMyContact` before replying.
+- **Safety:**
+  - Implement `anti-ban` delays (random 5-15s).
+  - Implement `license-gate` (blocked state until key verified).
+
 ## Folder Structure
 ```text
 /src

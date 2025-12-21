@@ -25,6 +25,9 @@ Announce completion. Present final documentation. Provide integration instructio
 
 ## Technical Stack Guidelines
 
+### 0. Package Manager
+- **pnpm Only:** All commands (`install`, `dev`, `build`) must use `pnpm`. Do not use `npm` or `yarn` to avoid lockfile conflicts.
+
 ### 1. Electron & Architecture
 - **Process Separation:** Respect the boundary between Main and Renderer processes.
   - **Main Process:** Handles `whatsapp-web.js`, system tray, auto-updates, file system access.
