@@ -24,7 +24,9 @@ zod.z.object({
     description: zod.z.string().default("")
   }).default({}),
   botName: zod.z.string().default("JStar"),
-  currency: zod.z.string().default("₦")
+  currency: zod.z.string().default("₦"),
+  licenseStatus: zod.z.enum(["active", "expired", "invalid", "trial"]).default("trial"),
+  licensePlan: zod.z.string().default("free")
 });
 const IPC_CHANNELS = {
   // Bot control

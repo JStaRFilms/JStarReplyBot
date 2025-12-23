@@ -319,7 +319,9 @@ const SettingsSchema = zod.z.object({
     description: zod.z.string().default("")
   }).default({}),
   botName: zod.z.string().default("JStar"),
-  currency: zod.z.string().default("₦")
+  currency: zod.z.string().default("₦"),
+  licenseStatus: zod.z.enum(["active", "expired", "invalid", "trial"]).default("trial"),
+  licensePlan: zod.z.string().default("free")
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -450,8 +452,7 @@ const defaultData = {
   },
   documents: [],
   catalog: [],
-  drafts: [],
-  licenseValid: false
+  drafts: []
 };
 let db$1 = null;
 async function initDatabase() {
@@ -544,17 +545,6 @@ async function updateDraft(id, updates) {
     await db2.write();
   }
 }
-async function getLicenseStatus$1() {
-  const db2 = getDb();
-  await db2.read();
-  return db2.data.licenseValid;
-}
-async function setLicenseStatus(valid) {
-  const db2 = getDb();
-  await db2.read();
-  db2.data.licenseValid = valid;
-  await db2.write();
-}
 async function getCatalog() {
   const db2 = getDb();
   await db2.read();
@@ -600,6 +590,27 @@ async function seedDatabase() {
   };
   await db2.write();
 }
+const db$2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  addCatalogItem,
+  addDocument,
+  addDraft,
+  deleteCatalogItem: deleteCatalogItem$1,
+  getCatalog,
+  getDb,
+  getDocuments,
+  getDrafts,
+  getSettings,
+  getStats,
+  incrementStats,
+  initDatabase,
+  removeDocument,
+  removeDraft,
+  saveSettings,
+  seedDatabase,
+  updateCatalogItem,
+  updateDraft
+}, Symbol.toStringTag, { value: "Module" }));
 const logs = [];
 const MAX_LOGS = 1e3;
 function log(level, message) {
@@ -664,6 +675,28 @@ async function initLanceDB() {
   }
 }
 async function getEmbedding(text) {
+  const { getSettings: getSettings2 } = await Promise.resolve().then(() => db$2);
+  const settings = await getSettings2();
+  if (settings.licenseStatus === "active" && settings.licenseKey) {
+    try {
+      const GATEKEEPER_EMBED_URL = process.env.GATEKEEPER_URL?.replace("/chat", "/embed") || "http://127.0.0.1:3001/api/embed";
+      const response = await fetch(GATEKEEPER_EMBED_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${settings.licenseKey}`
+        },
+        body: JSON.stringify({ value: text })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.embedding;
+      }
+      log("WARN", `Gatekeeper embed failed (${response.status}), falling back to local key`);
+    } catch (error) {
+      log("ERROR", `Gatekeeper embed error: ${error}`);
+    }
+  }
   const embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
   const model = getGenAI().getGenerativeModel({ model: embeddingModel });
   const result = await model.embedContent(text);
@@ -839,7 +872,7 @@ async function validateLicenseKey(licenseKey) {
     const devKey = process.env.DEV_LICENSE_KEY;
     if (process.env.NODE_ENV === "development" && devKey && licenseKey === devKey) {
       log("WARN", "Development license key accepted (dev mode only)");
-      await setLicenseStatus(true);
+      await saveSettings({ licenseStatus: "active", licenseKey });
       return true;
     }
     const response = await fetch(`${LEMONSQUEEZY_API}/licenses/validate`, {
@@ -854,26 +887,28 @@ async function validateLicenseKey(licenseKey) {
     });
     if (!response.ok) {
       log("WARN", `License validation failed: HTTP ${response.status}`);
-      await setLicenseStatus(false);
+      await saveSettings({ licenseStatus: "invalid" });
       return false;
     }
     const data = await response.json();
     if (data.valid) {
       log("INFO", "License key validated successfully");
-      await setLicenseStatus(true);
+      await saveSettings({ licenseStatus: "active", licenseKey });
       return true;
     } else {
       log("WARN", "License key is invalid");
-      await setLicenseStatus(false);
+      await saveSettings({ licenseStatus: "invalid" });
       return false;
     }
   } catch (error) {
     log("ERROR", `License validation error: ${error}`);
-    return await getLicenseStatus$1();
+    const settings = await getSettings();
+    return settings.licenseStatus === "active";
   }
 }
 async function getLicenseStatus() {
-  return await getLicenseStatus$1();
+  const settings = await getSettings();
+  return settings.licenseStatus === "active";
 }
 function registerIpcHandlers(whatsappClient) {
   electron.ipcMain.handle(IPC_CHANNELS.START_BOT, async () => {
@@ -1108,11 +1143,12 @@ function getGroq() {
   }
   return groq;
 }
+const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api/chat";
 async function generateAIReply(userMessage, systemPrompt, history = []) {
   try {
     const context = await retrieveContext(userMessage);
     const settings = await getSettings();
-    const { botName, currency } = settings;
+    const { botName, currency, licenseKey, licenseStatus } = settings;
     const profile = settings.businessProfile;
     const catalog = await getCatalog();
     const catalogBlock = catalog.length > 0 ? `
@@ -1162,18 +1198,48 @@ Analyze the user's message for:
 - Product intent (what product/service they're asking about)
 
 Respond with a helpful reply.`;
-    const result = await ai.generateText({
-      model: getGroq()("moonshotai/kimi-k2-instruct-0905"),
-      system: fullSystemPrompt,
-      prompt: userMessage,
-      maxTokens: 300,
-      temperature: 0.7
-    });
+    let textResponse = "";
+    if (licenseStatus === "active" && licenseKey) {
+      log("INFO", `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`);
+      const response = await fetch(GATEKEEPER_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${licenseKey}`
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          // Gatekeeper can override this
+          messages: [
+            { role: "system", content: fullSystemPrompt },
+            { role: "user", content: userMessage }
+          ]
+        })
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        log("ERROR", `Gatekeeper request failed: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`Gatekeeper error: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      textResponse = data.text || data.choices?.[0]?.message?.content || "";
+    } else {
+      log("INFO", "Using local Groq API (Dev/Trial Mode)");
+      const result = await ai.generateText({
+        model: getGroq()("moonshotai/kimi-k2-instruct-0905"),
+        // Use defaults
+        system: fullSystemPrompt,
+        prompt: userMessage,
+        maxTokens: 300,
+        temperature: 0.7
+      });
+      textResponse = result.text;
+    }
     const sentiment = detectSentiment(userMessage);
     const productIntent = detectProductIntent(userMessage);
     log("AI", `Generated reply (sentiment: ${sentiment}, product: ${productIntent || "none"})`);
     return {
-      text: result.text,
+      text: textResponse,
       sentiment,
       productIntent
     };

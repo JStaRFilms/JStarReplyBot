@@ -26,7 +26,7 @@ interface AIReplyResult {
     productIntent?: string
 }
 
-const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'https://api.jstar.app/v1/chat'
+const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
 
 export async function generateAIReply(
     userMessage: string,
@@ -92,7 +92,7 @@ Respond with a helpful reply.`
         let textResponse = ''
 
         if (licenseStatus === 'active' && licenseKey) {
-            log('INFO', 'Routing request via Gatekeeper (Licensed)')
+            log('INFO', `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`)
             const response = await fetch(GATEKEEPER_API_URL, {
                 method: 'POST',
                 headers: {
@@ -109,12 +109,9 @@ Respond with a helpful reply.`
             })
 
             if (!response.ok) {
-                // If 403, license might be expired
-                if (response.status === 403 || response.status === 402) {
-                    log('WARN', 'Gatekeeper rejected request (License expired/invalid)')
-                    // Optionally update local status to invalid here
-                }
-                throw new Error(`Gatekeeper error: ${response.status}`)
+                const errorText = await response.text()
+                log('ERROR', `Gatekeeper request failed: ${response.status} ${response.statusText} - ${errorText}`)
+                throw new Error(`Gatekeeper error: ${response.status} - ${errorText}`)
             }
 
             const data = await response.json()

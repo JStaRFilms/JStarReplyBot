@@ -66,6 +66,33 @@ async function initLanceDB(): Promise<void> {
 }
 
 async function getEmbedding(text: string): Promise<number[]> {
+    const { getSettings } = await import('./db')
+    const settings = await getSettings()
+
+    // 1. Try Gatekeeper (Proxy) if Licensed
+    if (settings.licenseStatus === 'active' && settings.licenseKey) {
+        try {
+            const GATEKEEPER_EMBED_URL = process.env.GATEKEEPER_URL?.replace('/chat', '/embed') || 'http://127.0.0.1:3001/api/embed'
+            const response = await fetch(GATEKEEPER_EMBED_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${settings.licenseKey}`
+                },
+                body: JSON.stringify({ value: text })
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                return data.embedding
+            }
+            log('WARN', `Gatekeeper embed failed (${response.status}), falling back to local key`)
+        } catch (error) {
+            log('ERROR', `Gatekeeper embed error: ${error}`)
+        }
+    }
+
+    // 2. Fallback to Local Gemini Key
     const embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL
     const model = getGenAI().getGenerativeModel({ model: embeddingModel })
     const result = await model.embedContent(text)
