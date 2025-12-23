@@ -26,7 +26,8 @@ interface AIReplyResult {
     productIntent?: string
 }
 
-const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
+// Removed top-level constant to prevent early access before dotenv
+// const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
 
 export async function generateAIReply(
     userMessage: string,
@@ -92,6 +93,7 @@ Respond with a helpful reply.`
         let textResponse = ''
 
         if (licenseStatus === 'active' && licenseKey) {
+            const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
             log('INFO', `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`)
             const response = await fetch(GATEKEEPER_API_URL, {
                 method: 'POST',
