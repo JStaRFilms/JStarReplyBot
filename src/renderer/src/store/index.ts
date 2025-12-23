@@ -19,7 +19,7 @@ import type { ConnectionStatus, Settings, Stats, DraftMessage, LogEntry, Knowled
 interface AppState {
     connectionStatus: ConnectionStatus
     isRunning: boolean
-    activePage: 'home' | 'connect' | 'brain' | 'settings' | 'logs'
+    activePage: 'home' | 'connect' | 'brain' | 'settings' | 'logs' | 'catalog'
     isDark: boolean
     setConnectionStatus: (status: ConnectionStatus) => void
     setIsRunning: (running: boolean) => void
@@ -62,7 +62,16 @@ const defaultSettings: Settings = {
     maxDelay: 15,
     systemPrompt: 'You are JStar, a helpful support assistant. Be polite and concise.',
     blacklist: [],
-    whitelist: []
+    whitelist: [],
+    businessProfile: {
+        name: '',
+        industry: '',
+        targetAudience: '',
+        tone: 'professional',
+        description: ''
+    },
+    botName: 'JStar',
+    currency: '₦'
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -158,4 +167,6 @@ export const useActivityStore = create<ActivityState>((set) => ({
     })),
     setActivities: (activities) => set({ activities })
 }))
+
+export * from './catalogStore'
 

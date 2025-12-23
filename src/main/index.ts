@@ -106,7 +106,7 @@ app.whenReady().then(async () => {
 
     // Register IPC handlers
     registerIpcHandlers(whatsappClient)
-    log('INFO', 'IPC handlers registered')
+    log('INFO', 'IPC handlers registered (v2 with Catalog)')
 
     // Create window and tray
     createWindow()

@@ -15,7 +15,16 @@ export const SettingsSchema = z.object({
     ),
     licenseKey: z.string().optional(),
     blacklist: z.array(z.string()).default([]),
-    whitelist: z.array(z.string()).default([])
+    whitelist: z.array(z.string()).default([]),
+    businessProfile: z.object({
+        name: z.string().default(''),
+        industry: z.string().default(''),
+        targetAudience: z.string().default(''),
+        tone: z.enum(['professional', 'friendly', 'enthusiastic', 'formal']).default('professional'),
+        description: z.string().default('')
+    }).default({}),
+    botName: z.string().default('JStar'),
+    currency: z.string().default('₦')
 })
 export type Settings = z.infer<typeof SettingsSchema>
 
@@ -30,6 +39,19 @@ export interface DraftMessage {
     proposedReply: string
     sentiment: 'low' | 'medium' | 'high'
     createdAt: number
+}
+
+// ============ Product Catalog ============
+export interface CatalogItem {
+    id: string
+    name: string
+    description: string
+    price: number
+    imageUrl?: string
+    inStock: boolean
+    tags: string[]
+    createdAt: number
+    updatedAt: number
 }
 
 // ============ Log Entry ============
@@ -105,7 +127,16 @@ export const IPC_CHANNELS = {
     ON_STATS_UPDATE: 'stats:on-update',
 
     // Activity
-    ON_ACTIVITY: 'activity:on-new'
+    ON_ACTIVITY: 'activity:on-new',
+
+    // Catalog
+    GET_CATALOG: 'catalog:get-all',
+    ADD_PRODUCT: 'catalog:add',
+    UPDATE_PRODUCT: 'catalog:update',
+    DELETE_PRODUCT: 'catalog:delete',
+
+    // System
+    SEED_DB: 'system:seed-db'
 } as const
 
 // ============ IPC Payloads ============

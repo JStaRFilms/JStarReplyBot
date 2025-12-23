@@ -1,17 +1,19 @@
 import { useEffect } from 'react'
-import { Home, Link, Brain, Settings, FileText, Sun, Moon } from 'lucide-react'
-import { useAppStore, useSettingsStore, useStatsStore, useDraftsStore, useLogsStore, useDocumentsStore, useActivityStore, type ActivityEntry } from './store'
+import { Home, Link, Brain, Settings, FileText, Sun, Moon, ShoppingBag } from 'lucide-react'
+import { useAppStore, useSettingsStore, useStatsStore, useDraftsStore, useLogsStore, useDocumentsStore, useActivityStore, useCatalogStore, type ActivityEntry } from './store'
 import type { DraftMessage, LogEntry } from '../../shared/types'
 import HomePage from './pages/Home'
 import ConnectPage from './pages/Connect'
 import BrainPage from './pages/Brain'
 import SettingsPage from './pages/Settings'
 import LogsPage from './pages/Logs'
+import CatalogPage from './pages/Catalog'
 
 const navItems = [
     { id: 'home' as const, label: 'Home', icon: Home },
     { id: 'connect' as const, label: 'Connect', icon: Link },
     { id: 'brain' as const, label: 'Brain', icon: Brain },
+    { id: 'catalog' as const, label: 'Catalog', icon: ShoppingBag },
     { id: 'settings' as const, label: 'Settings', icon: Settings },
     { id: 'logs' as const, label: 'Logs', icon: FileText }
 ]
@@ -24,6 +26,7 @@ export default function App() {
     const { addLog, setLogs } = useLogsStore()
     const { setDocuments } = useDocumentsStore()
     const { addActivity } = useActivityStore()
+    const { setCatalog } = useCatalogStore()
 
     // Initialize data on mount
     useEffect(() => {
@@ -57,6 +60,12 @@ export default function App() {
                 const docsRes = await window.electron.getDocuments()
                 if (docsRes.success && docsRes.data) {
                     setDocuments(docsRes.data)
+                }
+
+                // Load catalog
+                const catalogRes = await window.electron.getCatalog()
+                if (catalogRes.success && catalogRes.data) {
+                    setCatalog(catalogRes.data)
                 }
 
                 // Check connection status
@@ -106,6 +115,7 @@ export default function App() {
             case 'home': return <HomePage />
             case 'connect': return <ConnectPage />
             case 'brain': return <BrainPage />
+            case 'catalog': return <CatalogPage />
             case 'settings': return <SettingsPage />
             case 'logs': return <LogsPage />
             default: {

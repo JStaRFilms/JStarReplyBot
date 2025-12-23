@@ -84,33 +84,54 @@ export class WhatsAppClient {
         try {
             const settings = await getSettings()
 
-            // Apply filters
+            // Pre-check for simple filters
+            if (msg.fromMe) return
+            if (settings.ignoreGroups && msg.from.includes('@g.us')) return
+            if (settings.ignoreStatuses && msg.from.includes('@broadcast')) return
+
+            // Detailed contact lookup
+            let contact
+            try {
+                contact = await msg.getContact()
+            } catch (e) {
+                // Known issue: wa-web.js sometimes fails ContactMethods.getIsMyContact check
+                log('WARN', `Contact lookup failed: ${e}`)
+            }
+
+            // Unsaved Contacts Only Filter
+            if (settings.unsavedContactsOnly && contact?.isMyContact) {
+                return
+            }
+
+            // Apply remaining filters
             if (!this.shouldReply(msg, settings)) {
                 return
             }
 
             const chat = await msg.getChat()
 
-            // Contact lookup may fail on some whatsapp-web.js versions
+            // Improved Name Resolution (fix for "showing numbers instead of names")
             let contactName = 'Unknown'
             let contactNumber = msg.from.replace('@c.us', '')
-            try {
-                const contact = await msg.getContact()
-                contactName = contact.pushname || contact.number || contactNumber
+
+            if (contact) {
+                // Priority: Saved Name -> Pushname -> Number
+                contactName = contact.name || contact.pushname || contact.number || contactNumber
                 contactNumber = contact.number || contactNumber
-            } catch (contactError) {
-                // Suppress noisy warning
-                // log('WARN', `Could not get contact info, using fallback: ${contactError}`)
-                contactName = contactNumber
+            } else {
+                // FALLBACK: Try to get pushname from raw message data if getContact failed
+                // @ts-ignore - _data exists on the message object at runtime
+                const rawName = msg._data?.notifyName || msg._data?.pushname
+                contactName = rawName || contactNumber
             }
 
             log('INFO', `New message from ${contactName}: "${msg.body.substring(0, 50)}..."`)
 
 
-            // Fetch conversation history (Last 10 messages)
+            // Fetch conversation history (Last 30 messages)
             let history: { role: 'user' | 'model'; content: string }[] = []
             try {
-                const fetchedMessages = await chat.fetchMessages({ limit: 10 })
+                const fetchedMessages = await chat.fetchMessages({ limit: 30 })
                 // Filter out the current message to avoid duplication if it's included
                 history = fetchedMessages
                     .filter(m => m.id._serialized !== msg.id._serialized)
@@ -260,18 +281,25 @@ export class WhatsAppClient {
 
     private splitMessage(text: string): string[] {
         // FR-017: Split long messages into 1-3 bubbles
-        if (text.length <= 200) return [text]
+        // Increased limit to 500 chars to avoid aggressive splitting
+        const MAX_BUBBLE_LENGTH = 500
 
-        const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]
+        if (text.length <= MAX_BUBBLE_LENGTH) return [text]
+
+        // Split by sentence terminators followed by whitespace to avoid splitting decimals (e.g. 4.5M)
+        const sentences = text.split(/(?<=[.!?])\s+/)
         const messages: string[] = []
         let current = ''
 
         for (const sentence of sentences) {
-            if ((current + sentence).length > 200 && messages.length < 2) {
+            // Add space if appending (reconstructing the split space)
+            const nextChunk = current ? `${current} ${sentence}` : sentence
+
+            if (nextChunk.length > MAX_BUBBLE_LENGTH && messages.length < 2) {
                 if (current) messages.push(current.trim())
                 current = sentence
             } else {
-                current += sentence
+                current = nextChunk
             }
         }
 

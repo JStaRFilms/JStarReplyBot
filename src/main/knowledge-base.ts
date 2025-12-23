@@ -5,7 +5,7 @@ import { existsSync } from 'fs'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { log } from './logger'
 import { addDocument, removeDocument, getDocuments } from './db'
-import type { KnowledgeDocument } from '../shared/types'
+import type { KnowledgeDocument, CatalogItem } from '../shared/types'
 
 // Configuration constants
 const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004'
@@ -160,6 +160,60 @@ export async function indexDocument(
     } catch (error) {
         log('ERROR', `Failed to index document: ${error}`)
         return null
+    }
+}
+
+export async function indexCatalogItem(item: CatalogItem): Promise<boolean> {
+    await initLanceDB()
+
+    try {
+        log('INFO', `Indexing product: ${item.name}`)
+
+        // Create a rich text representation for embedding
+        const text = `Product: ${item.name}
+Price: $${item.price}
+Description: ${item.description}
+Tags: ${item.tags.join(', ')}
+${item.inStock ? 'In Stock' : 'Out of Stock'}`
+
+        const embedding = await getEmbedding(text)
+
+        const record: VectorRecord = {
+            id: `prod_${item.id}`,
+            text,
+            vector: embedding,
+            documentId: `prod_${item.id}` // Reuse documentId field for product ID
+        }
+
+        // Store in LanceDB
+        if (!table && db) {
+            table = await db.createTable('knowledge', [record] as any)
+        } else if (table) {
+            // Remove existing if any (overwrite)
+            await deleteCatalogItem(item.id)
+            await table.add([record])
+        }
+
+        log('INFO', `Product indexed: ${item.name}`)
+        return true
+
+    } catch (error) {
+        log('ERROR', `Failed to index product: ${error}`)
+        return false
+    }
+}
+
+export async function deleteCatalogItem(id: string): Promise<boolean> {
+    await initLanceDB()
+    if (!table) return false
+
+    try {
+        // Delete where documentId = prod_{id}
+        await table.delete(`"documentId" = 'prod_${id}'`)
+        return true
+    } catch (error) {
+        log('ERROR', `Failed to delete product vectors: ${error}`)
+        return false
     }
 }
 

@@ -9,6 +9,16 @@ export default function SettingsPage() {
     const [licenseKey, setLicenseKey] = useState(settings?.licenseKey || '')
     const [isValidating, setIsValidating] = useState(false)
     const [systemPrompt, setSystemPrompt] = useState(settings?.systemPrompt || '')
+    const [businessProfile, setBusinessProfile] = useState(settings?.businessProfile || {
+        name: '',
+        industry: '',
+        targetAudience: '',
+        tone: 'professional' as const,
+        description: ''
+    })
+    const [botName, setBotName] = useState(settings?.botName || 'JStar')
+    const [currency, setCurrency] = useState(settings?.currency || '₦')
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
     const handleToggle = async (key: keyof Settings, value: boolean) => {
         if (!settings) return
@@ -17,20 +27,29 @@ export default function SettingsPage() {
     }
 
     const handleSave = async () => {
+        setSaveStatus('idle')
+        const newSettings = {
+            systemPrompt,
+            licenseKey,
+            businessProfile,
+            botName,
+            currency
+        }
+
         try {
-            const res = await window.electron.saveSettings({
-                systemPrompt,
-                licenseKey
-            })
+            const res = await window.electron.saveSettings(newSettings)
             if (res.success) {
-                // Optionally show success feedback
+                // IMPORTANT: Update local store to prevent reversion on reload/navigation
+                updateSettings(newSettings)
+                setSaveStatus('success')
+                setTimeout(() => setSaveStatus('idle'), 3000)
             } else {
                 console.error('Failed to save settings:', res.error)
-                alert('Failed to save settings. Please try again.')
+                setSaveStatus('error')
             }
         } catch (error) {
             console.error('Error saving settings:', error)
-            alert('An error occurred while saving settings.')
+            setSaveStatus('error')
         }
     }
 
@@ -65,6 +84,103 @@ export default function SettingsPage() {
                 <div className="w-8" />
             </nav>
 
+            {/* Business Profile */}
+            <Section title="Business Profile">
+                <div className="glass p-6 rounded-2xl space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Business Name</label>
+                            <input
+                                type="text"
+                                value={businessProfile.name}
+                                onChange={e => setBusinessProfile(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="JStar Films"
+                                className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Industry</label>
+                            <input
+                                type="text"
+                                value={businessProfile.industry}
+                                onChange={e => setBusinessProfile(prev => ({ ...prev, industry: e.target.value }))}
+                                placeholder="Photography & Videography"
+                                className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Audience</label>
+                        <input
+                            type="text"
+                            value={businessProfile.targetAudience}
+                            onChange={e => setBusinessProfile(prev => ({ ...prev, targetAudience: e.target.value }))}
+                            placeholder="Couples getting married, Corporate clients..."
+                            className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Brand Tone</label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {['professional', 'friendly', 'enthusiastic', 'formal'].map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => setBusinessProfile(prev => ({ ...prev, tone: t as any }))}
+                                    className={`px-3 py-2 rounded-lg text-xs font-medium capitalize border transition-all ${businessProfile.tone === t
+                                        ? 'bg-brand-500/10 border-brand-500 text-brand-600'
+                                        : 'bg-slate-50 dark:bg-surface-800 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
+                                        }`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Business Description</label>
+                        <textarea
+                            value={businessProfile.description}
+                            onChange={e => setBusinessProfile(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder="We specialize in cinematic wedding films and high-end corporate video production..."
+                            className="w-full h-24 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none text-slate-600 dark:text-slate-400"
+                        />
+                    </div>
+                </div>
+            </Section>
+
+            {/* Bot Identity */}
+            <Section title="Bot Identity">
+                <div className="glass p-6 rounded-2xl space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Bot Name</label>
+                            <input
+                                type="text"
+                                value={botName}
+                                onChange={e => setBotName(e.target.value)}
+                                placeholder="JStar"
+                                className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                            />
+                            <p className="text-xs text-slate-500">The name the AI will use to introduce itself.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency Symbol</label>
+                            <input
+                                type="text"
+                                value={currency}
+                                onChange={e => setCurrency(e.target.value)}
+                                placeholder="₦"
+                                className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                            />
+                            <p className="text-xs text-slate-500">Used for product prices (e.g. $, ₦, £).</p>
+                        </div>
+                    </div>
+                </div>
+            </Section>
+
             {/* Automation Mode */}
             <Section title="Automation">
                 <div className="glass p-6 rounded-2xl space-y-6">
@@ -73,6 +189,13 @@ export default function SettingsPage() {
                         description="Approvals required before sending. Safer for new users."
                         checked={settings.draftMode}
                         onChange={(v) => handleToggle('draftMode', v)}
+                    />
+
+                    <ToggleRow
+                        title="Safe Mode (Human Mimic)"
+                        description="Adds random delays and typing indicators to avoid WhatsApp bans."
+                        checked={settings.safeModeEnabled}
+                        onChange={(v) => handleToggle('safeModeEnabled', v)}
                     />
 
                     <div className={`flex items-center justify-between ${settings.draftMode ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -151,15 +274,60 @@ export default function SettingsPage() {
             </Section>
 
             {/* Save Actions */}
-            <div className="flex justify-end pt-4">
+            <div className="flex items-center justify-end gap-4 pt-4">
+                {saveStatus === 'success' && (
+                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400 animate-fade-in flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Settings Saved!
+                    </span>
+                )}
+                {saveStatus === 'error' && (
+                    <span className="text-sm font-medium text-rose-600 dark:text-rose-400 animate-fade-in">
+                        Failed to save
+                    </span>
+                )}
                 <button
                     onClick={handleSave}
-                    className="bg-brand-600 hover:bg-brand-500 text-white px-8 py-3 rounded-xl font-medium shadow-lg shadow-brand-500/20 active:scale-95 transition-all"
+                    disabled={saveStatus === 'success'}
+                    className={`px-8 py-3 rounded-xl font-medium shadow-lg transition-all ${saveStatus === 'success'
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                        : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20 active:scale-95'
+                        }`}
                 >
-                    Save Changes
+                    {saveStatus === 'success' ? 'Saved' : 'Save Changes'}
                 </button>
             </div>
-        </div>
+
+            {/* Developer Zone */}
+            <Section title="Developer Zone">
+                <div className="glass p-6 rounded-2xl border border-rose-500/20 bg-rose-500/5 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="font-medium text-rose-900 dark:text-rose-200">Reset & Seed Database</h3>
+                            <p className="text-xs text-rose-700/70 dark:text-rose-300/70">Wipes all products and loads "James's Bistro & Motors" sample data.</p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (confirm('WARNING: This will delete all your current products and settings. Are you sure?')) {
+                                    const res = await window.electron.seedDB()
+                                    if (res.success) {
+                                        alert('Database seeded successfully! Please restart the app or reload the page.')
+                                        window.location.reload()
+                                    } else {
+                                        alert('Failed to seed database: ' + res.error)
+                                    }
+                                }
+                            }}
+                            className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-rose-500/20"
+                        >
+                            Seed Data
+                        </button>
+                    </div>
+                </div>
+            </Section>
+        </div >
     )
 }
 

@@ -15,7 +15,16 @@ zod.z.object({
   ),
   licenseKey: zod.z.string().optional(),
   blacklist: zod.z.array(zod.z.string()).default([]),
-  whitelist: zod.z.array(zod.z.string()).default([])
+  whitelist: zod.z.array(zod.z.string()).default([]),
+  businessProfile: zod.z.object({
+    name: zod.z.string().default(""),
+    industry: zod.z.string().default(""),
+    targetAudience: zod.z.string().default(""),
+    tone: zod.z.enum(["professional", "friendly", "enthusiastic", "formal"]).default("professional"),
+    description: zod.z.string().default("")
+  }).default({}),
+  botName: zod.z.string().default("JStar"),
+  currency: zod.z.string().default("₦")
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -52,13 +61,25 @@ const IPC_CHANNELS = {
   GET_STATS: "stats:get",
   ON_STATS_UPDATE: "stats:on-update",
   // Activity
-  ON_ACTIVITY: "activity:on-new"
+  ON_ACTIVITY: "activity:on-new",
+  // Catalog
+  GET_CATALOG: "catalog:get-all",
+  ADD_PRODUCT: "catalog:add",
+  UPDATE_PRODUCT: "catalog:update",
+  DELETE_PRODUCT: "catalog:delete",
+  // System
+  SEED_DB: "system:seed-db"
 };
 const electronAPI = {
   // Bot control
   startBot: () => electron.ipcRenderer.invoke(IPC_CHANNELS.START_BOT),
   stopBot: () => electron.ipcRenderer.invoke(IPC_CHANNELS.STOP_BOT),
   getStatus: () => electron.ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
+  // Catalog
+  getCatalog: () => electron.ipcRenderer.invoke(IPC_CHANNELS.GET_CATALOG),
+  addProduct: (item) => electron.ipcRenderer.invoke(IPC_CHANNELS.ADD_PRODUCT, item),
+  updateProduct: (data) => electron.ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PRODUCT, data),
+  deleteProduct: (id) => electron.ipcRenderer.invoke(IPC_CHANNELS.DELETE_PRODUCT, id),
   // QR Auth
   getQRCode: () => electron.ipcRenderer.invoke(IPC_CHANNELS.GET_QR),
   onQRCode: (callback) => {
@@ -117,6 +138,8 @@ const electronAPI = {
     const handler = (_, activity) => callback(activity);
     electron.ipcRenderer.on(IPC_CHANNELS.ON_ACTIVITY, handler);
     return () => electron.ipcRenderer.removeListener(IPC_CHANNELS.ON_ACTIVITY, handler);
-  }
+  },
+  // System
+  seedDB: () => electron.ipcRenderer.invoke(IPC_CHANNELS.SEED_DB)
 };
 electron.contextBridge.exposeInMainWorld("electron", electronAPI);

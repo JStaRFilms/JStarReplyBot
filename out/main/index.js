@@ -30,6 +30,7 @@ const promises = require("node:fs/promises");
 const path = require("node:path");
 const node_url = require("node:url");
 const zod = require("zod");
+const uuid = require("uuid");
 const promises$1 = require("fs/promises");
 const fs = require("fs");
 const generativeAi = require("@google/generative-ai");
@@ -37,7 +38,7 @@ const whatsappWeb_js = require("whatsapp-web.js");
 const qrcode = require("qrcode");
 const groq$1 = require("@ai-sdk/groq");
 const ai = require("ai");
-function _interopNamespaceDefault$1(e) {
+function _interopNamespaceDefault(e) {
   const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
   if (e) {
     for (const k in e) {
@@ -53,7 +54,7 @@ function _interopNamespaceDefault$1(e) {
   n.default = e;
   return Object.freeze(n);
 }
-const qrcode__namespace = /* @__PURE__ */ _interopNamespaceDefault$1(qrcode);
+const qrcode__namespace = /* @__PURE__ */ _interopNamespaceDefault(qrcode);
 const is = {
   dev: !electron.app.isPackaged
 };
@@ -309,7 +310,16 @@ const SettingsSchema = zod.z.object({
   ),
   licenseKey: zod.z.string().optional(),
   blacklist: zod.z.array(zod.z.string()).default([]),
-  whitelist: zod.z.array(zod.z.string()).default([])
+  whitelist: zod.z.array(zod.z.string()).default([]),
+  businessProfile: zod.z.object({
+    name: zod.z.string().default(""),
+    industry: zod.z.string().default(""),
+    targetAudience: zod.z.string().default(""),
+    tone: zod.z.enum(["professional", "friendly", "enthusiastic", "formal"]).default("professional"),
+    description: zod.z.string().default("")
+  }).default({}),
+  botName: zod.z.string().default("JStar"),
+  currency: zod.z.string().default("₦")
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -346,8 +356,91 @@ const IPC_CHANNELS = {
   GET_STATS: "stats:get",
   ON_STATS_UPDATE: "stats:on-update",
   // Activity
-  ON_ACTIVITY: "activity:on-new"
+  ON_ACTIVITY: "activity:on-new",
+  // Catalog
+  GET_CATALOG: "catalog:get-all",
+  ADD_PRODUCT: "catalog:add",
+  UPDATE_PRODUCT: "catalog:update",
+  DELETE_PRODUCT: "catalog:delete",
+  // System
+  SEED_DB: "system:seed-db"
 };
+const SEED_PROFILE = {
+  name: "James's Bistro & Motors",
+  industry: "Hybrid Hospitality & Automotive",
+  targetAudience: "Hungry drivers and people who need a ride to dinner",
+  tone: "friendly",
+  description: "We solve two problems: Empty stomachs and walking. Get a delicious meal while you wait for your paperwork. The only place where you can buy a Benz and a bowl of Pepper Soup at the same time."
+};
+const SEED_CATALOG = [
+  // === FOOD ===
+  {
+    name: "Smoky Jollof Rice (Basmati)",
+    description: "Party style jollof rice with fried plantain and peppered turkey. The smoke will wake your ancestors.",
+    price: 4500,
+    inStock: true,
+    tags: ["food", "rice", "lunch"]
+  },
+  {
+    name: "Eba & Egusi Soup (Assorted)",
+    description: "Yellow garri with rich egusi soup containing shaki, beef, and dry fish. Finger licking goodness.",
+    price: 3500,
+    inStock: true,
+    tags: ["food", "swallow", "local"]
+  },
+  {
+    name: "Asun (Spicy Goat Meat)",
+    description: "Peppered goat meat chopped into bite-sized pieces. Warning: Very spicy.",
+    price: 5e3,
+    inStock: true,
+    tags: ["food", "sides", "spicy"]
+  },
+  {
+    name: "CWAY Water Dispenser refill",
+    description: "19L Refill bottle. Cold water for the hot weather.",
+    price: 1500,
+    inStock: true,
+    tags: ["drinks", "water"]
+  },
+  // === CARS ===
+  {
+    name: "Toyota Corolla 2010 (Bank Manager Spec)",
+    description: "Clean title, Lagos cleared. Ice cold AC, nothing to fix. Buy and drive.",
+    price: 45e5,
+    inStock: true,
+    tags: ["cars", "sedan", "toyota"]
+  },
+  {
+    name: "Lexus RX350 2017 (Full Option)",
+    description: "Panoramic roof, leather seats, reverse camera. Low mileage. Tokunbo standard.",
+    price: 28e6,
+    inStock: true,
+    tags: ["cars", "suv", "luxury"]
+  },
+  {
+    name: "Mercedes Benz C300 2016",
+    description: "Foreign used, accident free. Black on black interior. Pop and bang kit included (optional).",
+    price: 22e6,
+    inStock: false,
+    tags: ["cars", "sedan", "luxury"]
+  }
+];
+function generateSeedData() {
+  const catalog = SEED_CATALOG.map((item) => ({
+    ...item,
+    id: uuid.v4(),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }));
+  return {
+    catalog,
+    profile: SEED_PROFILE,
+    settings: {
+      botName: "JStar",
+      currency: "₦"
+    }
+  };
+}
 const defaultData = {
   settings: SettingsSchema.parse({}),
   stats: {
@@ -356,6 +449,7 @@ const defaultData = {
     leadsCaptured: 0
   },
   documents: [],
+  catalog: [],
   drafts: [],
   licenseValid: false
 };
@@ -459,6 +553,51 @@ async function setLicenseStatus(valid) {
   const db2 = getDb();
   await db2.read();
   db2.data.licenseValid = valid;
+  await db2.write();
+}
+async function getCatalog() {
+  const db2 = getDb();
+  await db2.read();
+  return db2.data.catalog || [];
+}
+async function addCatalogItem(item) {
+  const db2 = getDb();
+  await db2.read();
+  if (!db2.data.catalog) db2.data.catalog = [];
+  db2.data.catalog.push(item);
+  await db2.write();
+}
+async function updateCatalogItem(id, updates) {
+  const db2 = getDb();
+  await db2.read();
+  if (!db2.data.catalog) return;
+  const idx = db2.data.catalog.findIndex((i) => i.id === id);
+  if (idx !== -1) {
+    db2.data.catalog[idx] = { ...db2.data.catalog[idx], ...updates };
+    await db2.write();
+  }
+}
+async function deleteCatalogItem$1(id) {
+  const db2 = getDb();
+  await db2.read();
+  if (!db2.data.catalog) return;
+  db2.data.catalog = db2.data.catalog.filter((i) => i.id !== id);
+  await db2.write();
+}
+async function seedDatabase() {
+  const db2 = getDb();
+  await db2.read();
+  const { catalog, profile, settings } = generateSeedData();
+  db2.data.catalog = catalog;
+  db2.data.settings = {
+    ...db2.data.settings,
+    ...settings,
+    // Apply botName and currency
+    businessProfile: {
+      ...db2.data.settings.businessProfile,
+      ...profile
+    }
+  };
   await db2.write();
 }
 const logs = [];
@@ -594,6 +733,47 @@ async function indexDocument(filePath, fileName, fileType) {
   } catch (error) {
     log("ERROR", `Failed to index document: ${error}`);
     return null;
+  }
+}
+async function indexCatalogItem(item) {
+  await initLanceDB();
+  try {
+    log("INFO", `Indexing product: ${item.name}`);
+    const text = `Product: ${item.name}
+Price: $${item.price}
+Description: ${item.description}
+Tags: ${item.tags.join(", ")}
+${item.inStock ? "In Stock" : "Out of Stock"}`;
+    const embedding = await getEmbedding(text);
+    const record = {
+      id: `prod_${item.id}`,
+      text,
+      vector: embedding,
+      documentId: `prod_${item.id}`
+      // Reuse documentId field for product ID
+    };
+    if (!table && db) {
+      table = await db.createTable("knowledge", [record]);
+    } else if (table) {
+      await deleteCatalogItem(item.id);
+      await table.add([record]);
+    }
+    log("INFO", `Product indexed: ${item.name}`);
+    return true;
+  } catch (error) {
+    log("ERROR", `Failed to index product: ${error}`);
+    return false;
+  }
+}
+async function deleteCatalogItem(id) {
+  await initLanceDB();
+  if (!table) return false;
+  try {
+    await table.delete(`"documentId" = 'prod_${id}'`);
+    return true;
+  } catch (error) {
+    log("ERROR", `Failed to delete product vectors: ${error}`);
+    return false;
   }
 }
 async function deleteDocument(documentId) {
@@ -855,10 +1035,61 @@ function registerIpcHandlers(whatsappClient) {
       return { success: false, error: String(error) };
     }
   });
+  console.log("Registering Catalog handlers for:", IPC_CHANNELS.GET_CATALOG, IPC_CHANNELS.ADD_PRODUCT);
+  electron.ipcMain.handle(IPC_CHANNELS.GET_CATALOG, async () => {
+    try {
+      const catalog = await getCatalog();
+      return { success: true, data: catalog };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.ADD_PRODUCT, async (_, item) => {
+    try {
+      await addCatalogItem(item);
+      indexCatalogItem(item).catch(console.error);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.UPDATE_PRODUCT, async (_, { id, updates }) => {
+    try {
+      await updateCatalogItem(id, updates);
+      const shouldReindex = updates.name || updates.description || updates.price || updates.tags;
+      if (shouldReindex) {
+        const catalog = await getCatalog();
+        const newItem = catalog.find((i) => i.id === id);
+        if (newItem) {
+          indexCatalogItem(newItem).catch(console.error);
+        }
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.DELETE_PRODUCT, async (_, id) => {
+    try {
+      await deleteCatalogItem$1(id);
+      await deleteCatalogItem(id);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
   electron.ipcMain.handle(IPC_CHANNELS.GET_STATS, async () => {
     try {
       const stats = await getStats();
       return { success: true, data: stats };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.SEED_DB, async () => {
+    try {
+      await seedDatabase();
+      return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
     }
@@ -880,12 +1111,28 @@ function getGroq() {
 async function generateAIReply(userMessage, systemPrompt, history = []) {
   try {
     const context = await retrieveContext(userMessage);
+    const settings = await getSettings();
+    const { botName, currency } = settings;
+    const profile = settings.businessProfile;
+    const catalog = await getCatalog();
+    const catalogBlock = catalog.length > 0 ? `
+
+--- PRODUCT CATALOG ---
+${catalog.map((c) => `- ${c.name} (${currency}${c.price.toLocaleString()}): ${c.inStock ? "In Stock" : "Out of Stock"}`).join("\n")}
+--- END CATALOG ---
+` : "";
     const contextBlock = context.length > 0 ? `
 
 --- BUSINESS KNOWLEDGE ---
 ${context.join("\n\n")}
 --- END KNOWLEDGE ---
 ` : "";
+    const profileBlock = `
+You are ${botName}, a helpful AI assistant working for ${profile.name || "our business"}.
+Industry: ${profile.industry || "General"}
+Target Audience: ${profile.targetAudience}
+Tone: ${profile.tone}
+${profile.description}`;
     const historyBlock = history.length > 0 ? `
 
 --- CONVERSATION HISTORY ---
@@ -893,15 +1140,22 @@ ${history.map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`).join
 --- END HISTORY ---
 ` : "";
     const fullSystemPrompt = `${systemPrompt}
+${profileBlock}
+${catalogBlock}
 ${contextBlock}
 ${historyBlock}
 
 IMPORTANT INSTRUCTIONS:
-1. Keep responses concise and friendly (under 200 characters if possible)
-2. If you detect the user is asking about a specific product, mention it naturally
-3. If the user seems frustrated (sentiment: high), be extra empathetic
-4. Never admit you are an AI unless directly asked
-5. Use natural, conversational language
+1. Your name is ${botName}. You are NOT the business owner, you work for them.
+2. ALWAYS use ${currency} for currency (e.g. ${currency}1,000). Never use '$' unless explicitly asked.
+3. STRICTLY ADHERE TO THE PRODUCT CATALOG. Do not invent products or sell items mentioned in the generic description unless they explicitly appear in the CATALOG list.
+4. If a user asks for a product not in the catalog, politely say you don't have it and offer an alternative from the catalog.
+5. Keep responses concise and friendly (under 200 characters if possible)
+6. If you detect the user is asking about a specific product, mention it naturally
+7. If the user seems frustrated (sentiment: high), be extra empathetic
+8. Never admit you are an AI unless directly asked
+9. Use natural, conversational language
+10. Match the specified Tone (${profile.tone}) in your writing style.
 
 Analyze the user's message for:
 - Sentiment level (low/medium/high frustration)
@@ -1015,23 +1269,35 @@ class WhatsAppClient {
   async handleIncomingMessage(msg) {
     try {
       const settings = await getSettings();
+      if (msg.fromMe) return;
+      if (settings.ignoreGroups && msg.from.includes("@g.us")) return;
+      if (settings.ignoreStatuses && msg.from.includes("@broadcast")) return;
+      let contact;
+      try {
+        contact = await msg.getContact();
+      } catch (e) {
+        log("WARN", `Contact lookup failed: ${e}`);
+      }
+      if (settings.unsavedContactsOnly && contact?.isMyContact) {
+        return;
+      }
       if (!this.shouldReply(msg, settings)) {
         return;
       }
       const chat = await msg.getChat();
       let contactName = "Unknown";
       let contactNumber = msg.from.replace("@c.us", "");
-      try {
-        const contact = await msg.getContact();
-        contactName = contact.pushname || contact.number || contactNumber;
+      if (contact) {
+        contactName = contact.name || contact.pushname || contact.number || contactNumber;
         contactNumber = contact.number || contactNumber;
-      } catch (contactError) {
-        contactName = contactNumber;
+      } else {
+        const rawName = msg._data?.notifyName || msg._data?.pushname;
+        contactName = rawName || contactNumber;
       }
       log("INFO", `New message from ${contactName}: "${msg.body.substring(0, 50)}..."`);
       let history = [];
       try {
-        const fetchedMessages = await chat.fetchMessages({ limit: 10 });
+        const fetchedMessages = await chat.fetchMessages({ limit: 30 });
         history = fetchedMessages.filter((m) => m.id._serialized !== msg.id._serialized).map((m) => ({
           role: m.fromMe ? "model" : "user",
           content: m.body
@@ -1136,16 +1402,18 @@ class WhatsAppClient {
     }
   }
   splitMessage(text) {
-    if (text.length <= 200) return [text];
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+    const MAX_BUBBLE_LENGTH = 500;
+    if (text.length <= MAX_BUBBLE_LENGTH) return [text];
+    const sentences = text.split(/(?<=[.!?])\s+/);
     const messages = [];
     let current = "";
     for (const sentence of sentences) {
-      if ((current + sentence).length > 200 && messages.length < 2) {
+      const nextChunk = current ? `${current} ${sentence}` : sentence;
+      if (nextChunk.length > MAX_BUBBLE_LENGTH && messages.length < 2) {
         if (current) messages.push(current.trim());
         current = sentence;
       } else {
-        current += sentence;
+        current = nextChunk;
       }
     }
     if (current) messages.push(current.trim());
@@ -1335,7 +1603,7 @@ electron.app.whenReady().then(async () => {
   exports.whatsappClient = new WhatsAppClient();
   log("INFO", "WhatsApp client initialized");
   registerIpcHandlers(exports.whatsappClient);
-  log("INFO", "IPC handlers registered");
+  log("INFO", "IPC handlers registered (v2 with Catalog)");
   createWindow();
   createTray();
   try {

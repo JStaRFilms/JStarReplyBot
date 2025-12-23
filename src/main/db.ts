@@ -2,13 +2,15 @@ import { app } from 'electron'
 import { join } from 'path'
 import { Low } from 'lowdb'
 import { JSONFile } from 'lowdb/node'
-import type { Settings, Stats, KnowledgeDocument, DraftMessage } from '../shared/types'
+import type { Settings, Stats, KnowledgeDocument, DraftMessage, CatalogItem } from '../shared/types'
 import { SettingsSchema } from '../shared/types'
+import { generateSeedData } from './seed-data'
 
 interface DatabaseSchema {
     settings: Settings
     stats: Stats
     documents: KnowledgeDocument[]
+    catalog: CatalogItem[]
     drafts: DraftMessage[]
     licenseValid: boolean
 }
@@ -21,6 +23,7 @@ const defaultData: DatabaseSchema = {
         leadsCaptured: 0
     },
     documents: [],
+    catalog: [],
     drafts: [],
     licenseValid: false
 }
@@ -167,3 +170,63 @@ export async function setLicenseStatus(valid: boolean): Promise<void> {
     await db.write()
 }
 
+// ============ Catalog ============
+export async function getCatalog(): Promise<CatalogItem[]> {
+    const db = getDb()
+    await db.read()
+    return db.data.catalog || []
+}
+
+export async function addCatalogItem(item: CatalogItem): Promise<void> {
+    const db = getDb()
+    await db.read()
+    if (!db.data.catalog) db.data.catalog = []
+    db.data.catalog.push(item)
+    await db.write()
+}
+
+export async function updateCatalogItem(id: string, updates: Partial<CatalogItem>): Promise<void> {
+    const db = getDb()
+    await db.read()
+    if (!db.data.catalog) return
+    const idx = db.data.catalog.findIndex(i => i.id === id)
+    if (idx !== -1) {
+        db.data.catalog[idx] = { ...db.data.catalog[idx], ...updates } as CatalogItem
+        await db.write()
+    }
+}
+
+export async function deleteCatalogItem(id: string): Promise<void> {
+    const db = getDb()
+    await db.read()
+    if (!db.data.catalog) return
+    db.data.catalog = db.data.catalog.filter(i => i.id !== id)
+    await db.write()
+}
+
+
+export async function seedDatabase(): Promise<void> {
+    const db = getDb()
+    await db.read()
+
+    // Generate data
+    const { catalog, profile, settings } = generateSeedData()
+
+    // 1. Clear & Reset Catalog
+    db.data.catalog = catalog
+
+    // 2. Update Settings (Profile + Identity)
+    db.data.settings = {
+        ...db.data.settings,
+        ...settings, // Apply botName and currency
+        businessProfile: {
+            ...db.data.settings.businessProfile,
+            ...profile
+        }
+    }
+
+    // 3. Reset stats (optional, but good for "fresh start" feel)
+    // db.data.stats = { ...defaultData.stats }
+
+    await db.write()
+}

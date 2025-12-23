@@ -5,6 +5,7 @@ import type {
     DraftMessage,
     LogEntry,
     KnowledgeDocument,
+    CatalogItem,
     Stats,
     IPCResponse
 } from '../shared/types'
@@ -18,6 +19,16 @@ const electronAPI = {
         ipcRenderer.invoke(IPC_CHANNELS.STOP_BOT),
     getStatus: (): Promise<IPCResponse<{ status: string; isRunning: boolean }>> =>
         ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
+
+    // Catalog
+    getCatalog: (): Promise<IPCResponse<CatalogItem[]>> =>
+        ipcRenderer.invoke(IPC_CHANNELS.GET_CATALOG),
+    addProduct: (item: CatalogItem): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.ADD_PRODUCT, item),
+    updateProduct: (data: { id: string; updates: Partial<CatalogItem> }): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PRODUCT, data),
+    deleteProduct: (id: string): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.DELETE_PRODUCT, id),
 
     // QR Auth
     getQRCode: (): Promise<IPCResponse<string | null>> =>
@@ -100,7 +111,11 @@ const electronAPI = {
         const handler = (_: unknown, activity: { id: string; contact: string; time: string; query: string; response: string; timestamp: number }) => callback(activity)
         ipcRenderer.on(IPC_CHANNELS.ON_ACTIVITY, handler)
         return () => ipcRenderer.removeListener(IPC_CHANNELS.ON_ACTIVITY, handler)
-    }
+    },
+
+    // System
+    seedDB: (): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.SEED_DB)
 }
 
 // Expose to renderer
