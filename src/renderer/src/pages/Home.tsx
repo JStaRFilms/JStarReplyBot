@@ -61,7 +61,7 @@ export default function HomePage() {
                         <Activity className="w-5 h-5 text-brand-500" />
                         Live Activity
                     </h2>
-                    <div className="glass rounded-2xl divide-y divide-slate-100 dark:divide-white/5 min-h-[400px]">
+                    <div className="glass rounded-2xl divide-y divide-slate-100 dark:divide-white/5 max-h-[500px] overflow-y-auto custom-scrollbar">
                         {activities.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-[400px] text-slate-400">
                                 <Inbox className="w-12 h-12 mb-3 opacity-30" />
@@ -192,44 +192,67 @@ function DraftCard({ draft, onSend, onDiscard, onEdit }: {
     }
 
     return (
-        <div className="bg-slate-50/50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-white/5">
-            <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase">{draft.contactName}</span>
-                <span className="text-[10px] text-slate-400">{timeAgo()}</span>
+        <div className="bg-white dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm space-y-4">
+            {/* Header */}
+            <div className="flex justify-between items-center">
+                <span className="text-[10px] text-slate-400 font-mono">{timeAgo()}</span>
+                {draft.sentiment === 'high' && (
+                    <span className="bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-[10px] font-bold">
+                        ⚠️ High Sentiment
+                    </span>
+                )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 border-l-2 border-slate-300 dark:border-slate-700 pl-2">
-                "{draft.query}"
-            </p>
 
-            {draft.sentiment === 'high' && (
-                <div className="w-full bg-amber-500/10 text-amber-500 p-2 rounded text-[10px] mb-2 flex items-center gap-1">
-                    ⚠️ High Sentiment Risk
+            {/* Chat Flow UI */}
+            <div className="space-y-3">
+                {/* Incoming User Message */}
+                <div className="flex justify-start">
+                    <div className="bg-slate-100 dark:bg-white/10 rounded-2xl rounded-tl-none px-4 py-3 max-w-[90%] space-y-1">
+                        <p className="text-xs font-bold text-slate-500">{draft.contactName}</p>
+                        <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">"{draft.query}"</p>
+                    </div>
                 </div>
-            )}
 
-            <textarea
-                className="w-full bg-slate-100 dark:bg-black/30 text-sm text-slate-800 dark:text-slate-200 p-2 rounded mb-3 border border-transparent focus:border-brand-500 outline-none text-xs resize-none"
-                rows={3}
-                value={text}
-                onChange={(e) => {
-                    setText(e.target.value)
-                    onEdit(e.target.value)
-                }}
-            />
+                {/* Proposed Bot Reply */}
+                <div className="flex justify-end">
+                    <div className="bg-brand-50/50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20 rounded-2xl rounded-tr-none p-3 w-full max-w-[95%]">
+                        <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs text-brand-600 dark:text-brand-400 font-semibold flex items-center gap-1">
+                                <Bot className="w-3 h-3" />
+                                Proposed Reply
+                            </span>
+                            <span className="text-[10px] text-brand-400/60 uppercase tracking-wider">Editable</span>
+                        </div>
 
-            <div className="flex gap-2">
-                <button
-                    onClick={() => onSend(text)}
-                    className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-1.5 rounded text-xs font-medium transition-colors"
-                >
-                    Send
-                </button>
-                <button
-                    onClick={onDiscard}
-                    className="px-3 py-1.5 border border-slate-200 dark:border-white/10 text-slate-500 hover:text-rose-500 rounded text-xs transition-colors"
-                >
-                    <Trash2 className="w-3 h-3" />
-                </button>
+                        <textarea
+                            className="w-full bg-white dark:bg-black/20 text-sm text-slate-800 dark:text-slate-200 p-3 rounded-lg border border-brand-100 dark:border-white/5 focus:border-brand-500 outline-none resize-none transition-all placeholder:text-slate-400"
+                            rows={4}
+                            value={text}
+                            onChange={(e) => {
+                                setText(e.target.value)
+                                onEdit(e.target.value)
+                            }}
+                        />
+
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-brand-100 dark:border-white/5">
+                            <button
+                                onClick={onDiscard}
+                                className="px-3 py-1.5 border border-slate-200 dark:border-white/10 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-400 text-slate-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                                title="Discard Draft"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Discard
+                            </button>
+                            <button
+                                onClick={() => onSend(text)}
+                                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-1.5 rounded-lg text-xs font-bold shadow-lg shadow-brand-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Approve & Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     )

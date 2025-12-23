@@ -31,12 +31,13 @@ const path = require("node:path");
 const node_url = require("node:url");
 const zod = require("zod");
 const promises$1 = require("fs/promises");
+const fs = require("fs");
 const generativeAi = require("@google/generative-ai");
 const whatsappWeb_js = require("whatsapp-web.js");
 const qrcode = require("qrcode");
 const groq$1 = require("@ai-sdk/groq");
 const ai = require("ai");
-function _interopNamespaceDefault(e) {
+function _interopNamespaceDefault$1(e) {
   const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
   if (e) {
     for (const k in e) {
@@ -52,7 +53,7 @@ function _interopNamespaceDefault(e) {
   n.default = e;
   return Object.freeze(n);
 }
-const qrcode__namespace = /* @__PURE__ */ _interopNamespaceDefault(qrcode);
+const qrcode__namespace = /* @__PURE__ */ _interopNamespaceDefault$1(qrcode);
 const is = {
   dev: !electron.app.isPackaged
 };
@@ -380,7 +381,9 @@ async function getSettings() {
 async function saveSettings(settings) {
   const db2 = getDb();
   await db2.read();
-  db2.data.settings = { ...db2.data.settings, ...settings };
+  const merged = { ...db2.data.settings, ...settings };
+  const validated = SettingsSchema.parse(merged);
+  db2.data.settings = validated;
   await db2.write();
   return db2.data.settings;
 }
@@ -420,15 +423,6 @@ async function removeDocument(id) {
   await db2.read();
   db2.data.documents = db2.data.documents.filter((d) => d.id !== id);
   await db2.write();
-}
-async function updateDocument(id, updates) {
-  const db2 = getDb();
-  await db2.read();
-  const idx = db2.data.documents.findIndex((d) => d.id === id);
-  if (idx !== -1) {
-    db2.data.documents[idx] = { ...db2.data.documents[idx], ...updates };
-    await db2.write();
-  }
 }
 async function getDrafts() {
   const db2 = getDb();
@@ -495,6 +489,7 @@ function exportLogs() {
     return `[${time}] ${entry.level}: ${entry.message}`;
   }).join("\n");
 }
+const DEFAULT_EMBEDDING_MODEL = "text-embedding-004";
 let lancedb = null;
 let db = null;
 let table = null;
@@ -503,10 +498,11 @@ function getGenAI() {
   if (!genAI) {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
     if (!apiKey) {
-      log("WARN", "No Gemini API key found. Set GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY in .env.local");
-    } else {
-      log("INFO", `Gemini API key loaded (${apiKey.substring(0, 8)}...)`);
+      const error = "Gemini API key is required. Set GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY in .env.local";
+      log("ERROR", error);
+      throw new Error(error);
     }
+    log("INFO", "Gemini API key loaded successfully");
     genAI = new generativeAi.GoogleGenerativeAI(apiKey);
   }
   return genAI;
@@ -529,7 +525,8 @@ async function initLanceDB() {
   }
 }
 async function getEmbedding(text) {
-  const model = getGenAI().getGenerativeModel({ model: "text-embedding-004" });
+  const embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+  const model = getGenAI().getGenerativeModel({ model: embeddingModel });
   const result = await model.embedContent(text);
   return result.embedding.values;
 }
@@ -587,7 +584,9 @@ async function indexDocument(filePath, fileName, fileType) {
       type: fileType,
       sizeBytes: content.length,
       vectorCount: chunks.length,
-      indexedAt: Date.now()
+      indexedAt: Date.now(),
+      filePath
+      // Store for reindexing
     };
     await addDocument(doc);
     log("INFO", `Document indexed: ${fileName} (${chunks.length} vectors)`);
@@ -632,16 +631,34 @@ async function reindexDocument(documentId) {
     log("ERROR", `Document not found: ${documentId}`);
     return false;
   }
-  await updateDocument(documentId, { indexedAt: Date.now() });
-  log("INFO", `Document reindexed: ${doc.name}`);
-  return true;
+  if (!doc.filePath) {
+    log("ERROR", `Document ${documentId} is missing filePath, cannot reindex`);
+    return false;
+  }
+  if (!fs.existsSync(doc.filePath)) {
+    log("ERROR", `Source file no longer exists: ${doc.filePath}`);
+    return false;
+  }
+  try {
+    await deleteDocument(documentId);
+    const newDoc = await indexDocument(doc.filePath, doc.name, doc.type);
+    if (newDoc) {
+      log("INFO", `Document reindexed: ${doc.name}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    log("ERROR", `Failed to reindex document: ${error}`);
+    return false;
+  }
 }
 const LEMONSQUEEZY_API = "https://api.lemonsqueezy.com/v1";
 async function validateLicenseKey(licenseKey) {
   try {
     log("INFO", "Validating license key...");
-    if (licenseKey === "DEV-JSTAR-2024") {
-      log("INFO", "Development license key accepted");
+    const devKey = process.env.DEV_LICENSE_KEY;
+    if (process.env.NODE_ENV === "development" && devKey && licenseKey === devKey) {
+      log("WARN", "Development license key accepted (dev mode only)");
       await setLicenseStatus(true);
       return true;
     }
@@ -732,7 +749,7 @@ function registerIpcHandlers(whatsappClient) {
           { name: "Documents", extensions: ["pdf", "txt", "md"] }
         ]
       });
-      if (result.canceled || !result.filePaths[0]) {
+      if (result.canceled || result.filePaths.length === 0) {
         return { success: false, error: "No file selected" };
       }
       const filePath = result.filePaths[0];
@@ -860,7 +877,7 @@ function getGroq() {
   }
   return groq;
 }
-async function generateAIReply(userMessage, systemPrompt) {
+async function generateAIReply(userMessage, systemPrompt, history = []) {
   try {
     const context = await retrieveContext(userMessage);
     const contextBlock = context.length > 0 ? `
@@ -869,8 +886,15 @@ async function generateAIReply(userMessage, systemPrompt) {
 ${context.join("\n\n")}
 --- END KNOWLEDGE ---
 ` : "";
+    const historyBlock = history.length > 0 ? `
+
+--- CONVERSATION HISTORY ---
+${history.map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`).join("\n")}
+--- END HISTORY ---
+` : "";
     const fullSystemPrompt = `${systemPrompt}
 ${contextBlock}
+${historyBlock}
 
 IMPORTANT INSTRUCTIONS:
 1. Keep responses concise and friendly (under 200 characters if possible)
@@ -885,7 +909,7 @@ Analyze the user's message for:
 
 Respond with a helpful reply.`;
     const result = await ai.generateText({
-      model: getGroq()("llama-3.3-70b-versatile"),
+      model: getGroq()("moonshotai/kimi-k2-instruct-0905"),
       system: fullSystemPrompt,
       prompt: userMessage,
       maxTokens: 300,
@@ -1002,11 +1026,20 @@ class WhatsAppClient {
         contactName = contact.pushname || contact.number || contactNumber;
         contactNumber = contact.number || contactNumber;
       } catch (contactError) {
-        log("WARN", `Could not get contact info, using fallback: ${contactError}`);
         contactName = contactNumber;
       }
       log("INFO", `New message from ${contactName}: "${msg.body.substring(0, 50)}..."`);
-      const reply = await generateAIReply(msg.body, settings.systemPrompt);
+      let history = [];
+      try {
+        const fetchedMessages = await chat.fetchMessages({ limit: 10 });
+        history = fetchedMessages.filter((m) => m.id._serialized !== msg.id._serialized).map((m) => ({
+          role: m.fromMe ? "model" : "user",
+          content: m.body
+        }));
+      } catch (histError) {
+        log("WARN", `Failed to fetch history: ${histError}`);
+      }
+      const reply = await generateAIReply(msg.body, settings.systemPrompt, history);
       if (!reply) {
         log("WARN", "No reply generated by AI");
         return;
@@ -1027,9 +1060,13 @@ class WhatsAppClient {
           sentiment: reply.sentiment,
           createdAt: Date.now()
         };
-        await addDraft(draft);
-        this.broadcastToRenderer(IPC_CHANNELS.ON_NEW_DRAFT, draft);
-        log("INFO", `Draft queued for approval: ${draft.id}`);
+        try {
+          await addDraft(draft);
+          this.broadcastToRenderer(IPC_CHANNELS.ON_NEW_DRAFT, draft);
+          log("INFO", `Draft queued for approval: ${draft.id}`);
+        } catch (dbError) {
+          log("ERROR", `Failed to save draft to database: ${dbError}`);
+        }
         return;
       }
       await this.sendReplyWithSafeMode(msg, reply.text, settings);
@@ -1088,11 +1125,15 @@ class WhatsAppClient {
       }
       log("INFO", `Sent reply ${i + 1}/${messages.length}`);
     }
-    await incrementStats({
-      messagesSent: messages.length,
-      timeSavedMinutes: 1
-      // Assume 1 min saved per reply
-    });
+    try {
+      await incrementStats({
+        messagesSent: messages.length,
+        timeSavedMinutes: 1
+        // Assume 1 min saved per reply
+      });
+    } catch (statsError) {
+      log("ERROR", `Failed to update stats: ${statsError}`);
+    }
   }
   splitMessage(text) {
     if (text.length <= 200) return [text];
@@ -1162,10 +1203,26 @@ class WhatsAppClient {
     if (!draft || !this.client) return false;
     try {
       const text = editedText || draft.proposedReply;
-      const chat = await this.client.getChatById(draft.chatId);
+      let chat;
+      try {
+        chat = await this.client.getChatById(draft.chatId);
+      } catch (chatError) {
+        log("WARN", `Chat ${draft.chatId} no longer exists or is inaccessible: ${chatError}`);
+        await removeDraft(draftId);
+        return false;
+      }
       await chat.sendMessage(text);
-      await removeDraft(draftId);
-      await incrementStats({ messagesSent: 1, timeSavedMinutes: 1 });
+      const currentDrafts = await getDrafts();
+      if (!currentDrafts.find((d) => d.id === draftId)) {
+        log("WARN", `Draft ${draftId} was already removed by another process`);
+      } else {
+        await removeDraft(draftId);
+      }
+      try {
+        await incrementStats({ messagesSent: 1, timeSavedMinutes: 1 });
+      } catch (statsError) {
+        log("ERROR", `Failed to update stats: ${statsError}`);
+      }
       log("INFO", `Draft ${draftId} sent successfully`);
       return true;
     } catch (error) {
@@ -1175,18 +1232,30 @@ class WhatsAppClient {
   }
   async discardDraft(draftId) {
     try {
+      const drafts = await getDrafts();
+      if (!drafts.find((d) => d.id === draftId)) {
+        log("WARN", `Draft ${draftId} not found, may have been already removed`);
+        return false;
+      }
       await removeDraft(draftId);
       log("INFO", `Draft ${draftId} discarded`);
       return true;
-    } catch {
+    } catch (error) {
+      log("ERROR", `Failed to discard draft: ${error}`);
       return false;
     }
   }
   async editDraft(draftId, newText) {
     try {
+      const drafts = await getDrafts();
+      if (!drafts.find((d) => d.id === draftId)) {
+        log("WARN", `Draft ${draftId} not found for editing`);
+        return false;
+      }
       await updateDraft(draftId, { proposedReply: newText });
       return true;
-    } catch {
+    } catch (error) {
+      log("ERROR", `Failed to edit draft: ${error}`);
       return false;
     }
   }
@@ -1282,5 +1351,16 @@ electron.app.whenReady().then(async () => {
 electron.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     electron.app.quit();
+  }
+});
+electron.app.on("before-quit", async () => {
+  log("INFO", "Application quitting, cleaning up...");
+  if (exports.whatsappClient) {
+    try {
+      await exports.whatsappClient.stop();
+      log("INFO", "WhatsApp client stopped successfully");
+    } catch (error) {
+      log("ERROR", `Error stopping WhatsApp client: ${error}`);
+    }
   }
 });

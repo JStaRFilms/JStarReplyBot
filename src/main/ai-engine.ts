@@ -27,7 +27,8 @@ interface AIReplyResult {
 
 export async function generateAIReply(
     userMessage: string,
-    systemPrompt: string
+    systemPrompt: string,
+    history: { role: 'user' | 'model'; content: string }[] = []
 ): Promise<AIReplyResult | null> {
     try {
         // Retrieve relevant context from knowledge base (RAG)
@@ -37,8 +38,13 @@ export async function generateAIReply(
             ? `\n\n--- BUSINESS KNOWLEDGE ---\n${context.join('\n\n')}\n--- END KNOWLEDGE ---\n`
             : ''
 
+        const historyBlock = history.length > 0
+            ? `\n\n--- CONVERSATION HISTORY ---\n${history.map(m => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`).join('\n')}\n--- END HISTORY ---\n`
+            : ''
+
         const fullSystemPrompt = `${systemPrompt}
 ${contextBlock}
+${historyBlock}
 
 IMPORTANT INSTRUCTIONS:
 1. Keep responses concise and friendly (under 200 characters if possible)
@@ -54,7 +60,7 @@ Analyze the user's message for:
 Respond with a helpful reply.`
 
         const result = await generateText({
-            model: getGroq()('llama-3.3-70b-versatile'),
+            model: getGroq()('moonshotai/kimi-k2-instruct-0905'),
             system: fullSystemPrompt,
             prompt: userMessage,
             maxTokens: 300,
