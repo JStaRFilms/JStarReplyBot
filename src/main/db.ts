@@ -12,7 +12,6 @@ interface DatabaseSchema {
     documents: KnowledgeDocument[]
     catalog: CatalogItem[]
     drafts: DraftMessage[]
-    licenseValid: boolean
 }
 
 const defaultData: DatabaseSchema = {
@@ -24,8 +23,7 @@ const defaultData: DatabaseSchema = {
     },
     documents: [],
     catalog: [],
-    drafts: [],
-    licenseValid: false
+    drafts: []
 }
 
 let db: Low<DatabaseSchema> | null = null
@@ -156,19 +154,7 @@ export async function updateDraft(id: string, updates: Partial<DraftMessage>): P
     }
 }
 
-// ============ License ============
-export async function getLicenseStatus(): Promise<boolean> {
-    const db = getDb()
-    await db.read()
-    return db.data.licenseValid
-}
 
-export async function setLicenseStatus(valid: boolean): Promise<void> {
-    const db = getDb()
-    await db.read()
-    db.data.licenseValid = valid
-    await db.write()
-}
 
 // ============ Catalog ============
 export async function getCatalog(): Promise<CatalogItem[]> {

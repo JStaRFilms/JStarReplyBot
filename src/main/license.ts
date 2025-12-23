@@ -1,5 +1,5 @@
 import { log } from './logger'
-import { getLicenseStatus as getDbLicenseStatus, setLicenseStatus } from './db'
+import { getSettings, saveSettings } from './db'
 
 const LEMONSQUEEZY_API = 'https://api.lemonsqueezy.com/v1'
 
@@ -16,11 +16,11 @@ export async function validateLicenseKey(licenseKey: string): Promise<boolean> {
     try {
         log('INFO', 'Validating license key...')
 
-        // Development mode bypass via environment variable (NEVER ship with this set)
+        // Development mode bypass via environment variable
         const devKey = process.env.DEV_LICENSE_KEY
         if (process.env.NODE_ENV === 'development' && devKey && licenseKey === devKey) {
             log('WARN', 'Development license key accepted (dev mode only)')
-            await setLicenseStatus(true)
+            await saveSettings({ licenseStatus: 'active', licenseKey })
             return true
         }
 
@@ -38,7 +38,7 @@ export async function validateLicenseKey(licenseKey: string): Promise<boolean> {
 
         if (!response.ok) {
             log('WARN', `License validation failed: HTTP ${response.status}`)
-            await setLicenseStatus(false)
+            await saveSettings({ licenseStatus: 'invalid' })
             return false
         }
 
@@ -46,34 +46,36 @@ export async function validateLicenseKey(licenseKey: string): Promise<boolean> {
 
         if (data.valid) {
             log('INFO', 'License key validated successfully')
-            await setLicenseStatus(true)
+            await saveSettings({ licenseStatus: 'active', licenseKey })
             return true
         } else {
             log('WARN', 'License key is invalid')
-            await setLicenseStatus(false)
+            await saveSettings({ licenseStatus: 'invalid' })
             return false
         }
 
     } catch (error) {
         log('ERROR', `License validation error: ${error}`)
         // On network error, check cached status
-        return await getDbLicenseStatus()
+        const settings = await getSettings()
+        return settings.licenseStatus === 'active'
     }
 }
 
 export async function getLicenseStatus(): Promise<boolean> {
-    return await getDbLicenseStatus()
+    const settings = await getSettings()
+    return settings.licenseStatus === 'active'
 }
 
 export async function checkLicenseOnStartup(): Promise<boolean> {
-    const cachedStatus = await getDbLicenseStatus()
+    const settings = await getSettings()
 
-    if (!cachedStatus) {
-        log('WARN', 'No valid license found')
+    if (settings.licenseStatus !== 'active') {
+        log('WARN', 'No valid license found (or expired)')
         return false
     }
 
-    // Re-validate periodically (could be done on a timer)
+    // Optional: Background re-validation could happen here
     log('INFO', 'License status: Active (cached)')
     return true
 }

@@ -24,7 +24,9 @@ export const SettingsSchema = z.object({
         description: z.string().default('')
     }).default({}),
     botName: z.string().default('JStar'),
-    currency: z.string().default('₦')
+    currency: z.string().default('₦'),
+    licenseStatus: z.enum(['active', 'expired', 'invalid', 'trial']).default('trial'),
+    licensePlan: z.string().default('free')
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

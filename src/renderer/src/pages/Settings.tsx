@@ -58,10 +58,19 @@ export default function SettingsPage() {
         try {
             const res = await window.electron.validateLicense(licenseKey)
             if (res.success && res.data) {
-                alert('License validated successfully!')
+                // Refresh settings to get the updated status/plan
+                const settingsRes = await window.electron.getSettings()
+                if (settingsRes.success && settingsRes.data) {
+                    updateSettings(settingsRes.data)
+                }
+                setSaveStatus('success') // Re-use the success indicator
+                setTimeout(() => setSaveStatus('idle'), 3000)
             } else {
                 alert('Invalid license key')
             }
+        } catch (error) {
+            console.error('License validation failed:', error)
+            alert('Failed to validate license')
         } finally {
             setIsValidating(false)
         }
@@ -239,7 +248,15 @@ export default function SettingsPage() {
                 <div className="glass p-6 rounded-2xl space-y-6">
                     {/* License Key */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">License Key</label>
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">License Key</label>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${settings.licenseStatus === 'active'
+                                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                    : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                                }`}>
+                                {settings.licenseStatus}
+                            </span>
+                        </div>
                         <div className="flex gap-2">
                             <input
                                 type="password"

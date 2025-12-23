@@ -26,6 +26,8 @@ interface AIReplyResult {
     productIntent?: string
 }
 
+const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'https://api.jstar.app/v1/chat'
+
 export async function generateAIReply(
     userMessage: string,
     systemPrompt: string,
@@ -37,7 +39,7 @@ export async function generateAIReply(
 
         // Retrieve Settings (for Profile + Currency)
         const settings = await getSettings()
-        const { botName, currency } = settings
+        const { botName, currency, licenseKey, licenseStatus } = settings
         const profile = settings.businessProfile
 
         // Retrieve Catalog (Lite Index)
@@ -86,13 +88,50 @@ Analyze the user's message for:
 
 Respond with a helpful reply.`
 
-        const result = await generateText({
-            model: getGroq()('moonshotai/kimi-k2-instruct-0905'),
-            system: fullSystemPrompt,
-            prompt: userMessage,
-            maxTokens: 300,
-            temperature: 0.7
-        })
+        // BRANCH: Licensing Gatekeeper vs Local Dev
+        let textResponse = ''
+
+        if (licenseStatus === 'active' && licenseKey) {
+            log('INFO', 'Routing request via Gatekeeper (Licensed)')
+            const response = await fetch(GATEKEEPER_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${licenseKey}`
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile', // Gatekeeper can override this
+                    messages: [
+                        { role: 'system', content: fullSystemPrompt },
+                        { role: 'user', content: userMessage }
+                    ]
+                })
+            })
+
+            if (!response.ok) {
+                // If 403, license might be expired
+                if (response.status === 403 || response.status === 402) {
+                    log('WARN', 'Gatekeeper rejected request (License expired/invalid)')
+                    // Optionally update local status to invalid here
+                }
+                throw new Error(`Gatekeeper error: ${response.status}`)
+            }
+
+            const data = await response.json()
+            textResponse = data.text || data.choices?.[0]?.message?.content || ''
+
+        } else {
+            // Fallback to Local Env Key (Dev Mode)
+            log('INFO', 'Using local Groq API (Dev/Trial Mode)')
+            const result = await generateText({
+                model: getGroq()('moonshotai/kimi-k2-instruct-0905'), // Use defaults
+                system: fullSystemPrompt,
+                prompt: userMessage,
+                maxTokens: 300,
+                temperature: 0.7
+            })
+            textResponse = result.text
+        }
 
         // Analyze response for sentiment and product intent
         const sentiment = detectSentiment(userMessage)
@@ -101,7 +140,7 @@ Respond with a helpful reply.`
         log('AI', `Generated reply (sentiment: ${sentiment}, product: ${productIntent || 'none'})`)
 
         return {
-            text: result.text,
+            text: textResponse,
             sentiment,
             productIntent
         }
