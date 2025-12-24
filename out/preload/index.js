@@ -70,7 +70,12 @@ const IPC_CHANNELS = {
   UPDATE_PRODUCT: "catalog:update",
   DELETE_PRODUCT: "catalog:delete",
   // System
-  SEED_DB: "system:seed-db"
+  SEED_DB: "system:seed-db",
+  // Smart Queue
+  ON_QUEUE_UPDATE: "queue:on-update",
+  // Active buffers list changed
+  ON_QUEUE_PROCESSED: "queue:on-processed"
+  // A batch was successfully aggregated
 };
 const electronAPI = {
   // Bot control
@@ -142,6 +147,17 @@ const electronAPI = {
     return () => electron.ipcRenderer.removeListener(IPC_CHANNELS.ON_ACTIVITY, handler);
   },
   // System
-  seedDB: () => electron.ipcRenderer.invoke(IPC_CHANNELS.SEED_DB)
+  seedDB: () => electron.ipcRenderer.invoke(IPC_CHANNELS.SEED_DB),
+  // Smart Queue
+  onQueueUpdate: (callback) => {
+    const handler = (_, items) => callback(items);
+    electron.ipcRenderer.on(IPC_CHANNELS.ON_QUEUE_UPDATE, handler);
+    return () => electron.ipcRenderer.removeListener(IPC_CHANNELS.ON_QUEUE_UPDATE, handler);
+  },
+  onQueueProcessed: (callback) => {
+    const handler = (_, event) => callback(event);
+    electron.ipcRenderer.on(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler);
+    return () => electron.ipcRenderer.removeListener(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler);
+  }
 };
 electron.contextBridge.exposeInMainWorld("electron", electronAPI);

@@ -115,7 +115,19 @@ const electronAPI = {
 
     // System
     seedDB: (): Promise<IPCResponse> =>
-        ipcRenderer.invoke(IPC_CHANNELS.SEED_DB)
+        ipcRenderer.invoke(IPC_CHANNELS.SEED_DB),
+
+    // Smart Queue
+    onQueueUpdate: (callback: (items: any[]) => void) => {
+        const handler = (_: unknown, items: any[]) => callback(items)
+        ipcRenderer.on(IPC_CHANNELS.ON_QUEUE_UPDATE, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.ON_QUEUE_UPDATE, handler)
+    },
+    onQueueProcessed: (callback: (event: any) => void) => {
+        const handler = (_: unknown, event: any) => callback(event)
+        ipcRenderer.on(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler)
+    }
 }
 
 // Expose to renderer

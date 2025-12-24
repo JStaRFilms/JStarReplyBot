@@ -138,8 +138,33 @@ export const IPC_CHANNELS = {
     DELETE_PRODUCT: 'catalog:delete',
 
     // System
-    SEED_DB: 'system:seed-db'
+    SEED_DB: 'system:seed-db',
+
+    // Smart Queue
+    ON_QUEUE_UPDATE: 'queue:on-update', // Active buffers list changed
+    ON_QUEUE_PROCESSED: 'queue:on-processed' // A batch was successfully aggregated
 } as const
+
+// ============ Queue Types ============
+export interface QueueBufferItem {
+    contactId: string
+    contactName?: string
+    messageCount: number
+    startTime: number
+    expiresAt: number
+    lastMessagePreview: string
+}
+
+export interface QueueProcessedEvent {
+    contactId: string
+    contactName?: string
+    messageCount: number
+    aggregatedPrompt: string
+    costSaved: number
+    timestamp: number
+    status: 'sent' | 'failed' | 'skipped' | 'drafted'
+    error?: string
+}
 
 // ============ IPC Payloads ============
 export interface IPCResponse<T = unknown> {

@@ -365,7 +365,12 @@ const IPC_CHANNELS = {
   UPDATE_PRODUCT: "catalog:update",
   DELETE_PRODUCT: "catalog:delete",
   // System
-  SEED_DB: "system:seed-db"
+  SEED_DB: "system:seed-db",
+  // Smart Queue
+  ON_QUEUE_UPDATE: "queue:on-update",
+  // Active buffers list changed
+  ON_QUEUE_PROCESSED: "queue:on-processed"
+  // A batch was successfully aggregated
 };
 const SEED_PROFILE = {
   name: "James's Bistro & Motors",
@@ -1273,13 +1278,109 @@ function detectProductIntent(text) {
   }
   return void 0;
 }
+class SmartQueueService {
+  buffers = /* @__PURE__ */ new Map();
+  // 10 seconds debounce - allows user to type multiple valid messages
+  DEBOUNCE_MS = 1e4;
+  broadcast;
+  constructor(broadcast) {
+    this.broadcast = broadcast;
+  }
+  setBroadcast(fn) {
+    this.broadcast = fn;
+  }
+  /**
+   * Enqueue a message for a specific contact.
+   * Starts or resets the debounce timer.
+   */
+  enqueue(contactId, message, onProcess) {
+    const existing = this.buffers.get(contactId);
+    const now = Date.now();
+    const contactName = message._data?.notifyName || contactId.replace("@c.us", "");
+    if (existing) {
+      clearTimeout(existing.timer);
+      existing.messages.push(message);
+      log("DEBUG", `[SmartQueue] Buffering message for ${contactName} (${existing.messages.length} pending)`);
+      existing.timer = setTimeout(() => {
+        this.processBuffer(contactId, onProcess);
+      }, this.DEBOUNCE_MS);
+    } else {
+      log("DEBUG", `[SmartQueue] Starting new buffer for ${contactName}`);
+      const timer = setTimeout(() => {
+        this.processBuffer(contactId, onProcess);
+      }, this.DEBOUNCE_MS);
+      this.buffers.set(contactId, {
+        timer,
+        messages: [message],
+        startTime: now
+      });
+    }
+    this.emitQueueUpdate();
+  }
+  async processBuffer(contactId, callback) {
+    const item = this.buffers.get(contactId);
+    if (!item) return;
+    this.buffers.delete(contactId);
+    this.emitQueueUpdate();
+    log("INFO", `[SmartQueue] Processing batch of ${item.messages.length} messages for ${contactId}`);
+    try {
+      const result = await callback(item.messages);
+      if (this.broadcast) {
+        const event = {
+          contactId,
+          contactName: item.messages[0]._data?.notifyName || contactId,
+          messageCount: item.messages.length,
+          aggregatedPrompt: item.messages.map((m) => m.body).join(" | "),
+          costSaved: (item.messages.length - 1) * 0.05,
+          timestamp: Date.now(),
+          status: result.status,
+          error: result.error
+        };
+        this.broadcast("queue:on-processed", event);
+      }
+    } catch (error) {
+      log("ERROR", `[SmartQueue] Failed to process batch: ${error}`);
+      if (this.broadcast) {
+        const event = {
+          contactId,
+          contactName: item.messages[0]._data?.notifyName || contactId,
+          messageCount: item.messages.length,
+          aggregatedPrompt: item.messages.map((m) => m.body).join(" | "),
+          costSaved: 0,
+          timestamp: Date.now(),
+          status: "failed",
+          error: String(error)
+        };
+        this.broadcast("queue:on-processed", event);
+      }
+    }
+  }
+  emitQueueUpdate() {
+    if (!this.broadcast) return;
+    const items = Array.from(this.buffers.entries()).map(([id, item]) => {
+      const lastMsg = item.messages[item.messages.length - 1];
+      if (!lastMsg) return null;
+      const bufferItem = {
+        contactId: id,
+        contactName: lastMsg._data?.notifyName || id.replace("@c.us", ""),
+        messageCount: item.messages.length,
+        startTime: item.startTime,
+        expiresAt: Date.now() + this.DEBOUNCE_MS,
+        lastMessagePreview: lastMsg.body.substring(0, 30)
+      };
+      return bufferItem;
+    }).filter((i) => i !== null);
+    this.broadcast("queue:on-update", items);
+  }
+}
 class WhatsAppClient {
   client = null;
   status = "disconnected";
   qrCodeDataUrl = null;
   isRunning = false;
-  // Drafts now persisted to database
+  queueService;
   constructor() {
+    this.queueService = new SmartQueueService((channel, data) => this.broadcastToRenderer(channel, data));
     this.initClient();
   }
   initClient() {
@@ -1350,7 +1451,6 @@ class WhatsAppClient {
       if (!this.shouldReply(msg, settings)) {
         return;
       }
-      const chat = await msg.getChat();
       let contactName = "Unknown";
       let contactNumber = msg.from.replace("@c.us", "");
       if (contact) {
@@ -1360,25 +1460,59 @@ class WhatsAppClient {
         const rawName = msg._data?.notifyName || msg._data?.pushname;
         contactName = rawName || contactNumber;
       }
-      log("INFO", `New message from ${contactName}: "${msg.body.substring(0, 50)}..."`);
+      this.queueService.enqueue(
+        msg.from,
+        msg,
+        (messages) => this.processAggregatedMessages(messages, settings, contactName)
+      );
+    } catch (error) {
+      log("ERROR", `Error handling message: ${error}`);
+    }
+  }
+  async processAggregatedMessages(messages, settings, contactName) {
+    if (messages.length === 0) return { status: "skipped" };
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg) return { status: "skipped" };
+    const contactNumber = lastMsg.from.replace("@c.us", "");
+    try {
+      let chat;
+      try {
+        chat = await lastMsg.getChat();
+      } catch (chatError) {
+        log("ERROR", `Failed to get chat context: ${chatError}`);
+        return { status: "failed", error: "Chat context unavailable" };
+      }
+      const combinedQuery = messages.map((m) => m.body).join("\n");
+      log("INFO", `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`);
       let history = [];
       try {
         const fetchedMessages = await chat.fetchMessages({ limit: 30 });
-        history = fetchedMessages.filter((m) => m.id._serialized !== msg.id._serialized).map((m) => ({
+        const currentBatchIds = new Set(messages.map((m) => m.id._serialized));
+        history = fetchedMessages.filter((m) => !currentBatchIds.has(m.id._serialized)).map((m) => ({
           role: m.fromMe ? "model" : "user",
           content: m.body
         }));
       } catch (histError) {
         log("WARN", `Failed to fetch history: ${histError}`);
       }
-      const reply = await generateAIReply(msg.body, settings.systemPrompt, history);
-      if (!reply) {
-        log("WARN", "No reply generated by AI");
-        return;
+      let reply;
+      try {
+        reply = await generateAIReply(combinedQuery, settings.systemPrompt, history);
+      } catch (aiError) {
+        const errorStr = String(aiError);
+        log("ERROR", `AI Gen Failed: ${errorStr}`);
+        return { status: "failed", error: errorStr.includes("402") ? "License Expired" : "AI Service Error" };
       }
-      if (settings.humanHandoverEnabled && this.detectHandoverRequest(msg.body)) {
+      if (!reply) {
+        log("WARN", "No reply generated by AI (Empty response)");
+        return { status: "skipped", error: "Empty AI Response" };
+      }
+      const handoverRequested = messages.some(
+        (m) => settings.humanHandoverEnabled && this.detectHandoverRequest(m.body)
+      );
+      if (handoverRequested) {
         log("INFO", `Human handover requested by ${contactName}`);
-        return;
+        return { status: "skipped", error: "Handover Requested" };
       }
       if (settings.draftMode) {
         const draft = {
@@ -1386,8 +1520,10 @@ class WhatsAppClient {
           chatId: chat.id._serialized,
           contactName,
           contactNumber,
-          originalMessageId: msg.id._serialized,
-          query: msg.body,
+          originalMessageId: lastMsg.id._serialized,
+          // Link to newest message
+          query: combinedQuery,
+          // Store the FULL aggregated query
           proposedReply: reply.text,
           sentiment: reply.sentiment,
           createdAt: Date.now()
@@ -1396,24 +1532,32 @@ class WhatsAppClient {
           await addDraft(draft);
           this.broadcastToRenderer(IPC_CHANNELS.ON_NEW_DRAFT, draft);
           log("INFO", `Draft queued for approval: ${draft.id}`);
+          return { status: "drafted" };
         } catch (dbError) {
           log("ERROR", `Failed to save draft to database: ${dbError}`);
+          return { status: "failed", error: "Draft DB Error" };
         }
-        return;
       }
-      await this.sendReplyWithSafeMode(msg, reply.text, settings);
-      const now = /* @__PURE__ */ new Date();
-      const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-      this.broadcastToRenderer(IPC_CHANNELS.ON_ACTIVITY, {
-        id: `activity_${Date.now()}`,
-        contact: contactName,
-        time: timeStr,
-        query: msg.body,
-        response: reply.text,
-        timestamp: Date.now()
-      });
+      try {
+        await this.sendReplyWithSafeMode(lastMsg, reply.text, settings);
+        const now = /* @__PURE__ */ new Date();
+        const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+        this.broadcastToRenderer(IPC_CHANNELS.ON_ACTIVITY, {
+          id: `activity_${Date.now()}`,
+          contact: contactName,
+          time: timeStr,
+          query: combinedQuery,
+          response: reply.text,
+          timestamp: Date.now()
+        });
+        return { status: "sent" };
+      } catch (sendError) {
+        log("ERROR", `Failed to send reply: ${sendError}`);
+        return { status: "failed", error: "WhatsApp Send Failed" };
+      }
     } catch (error) {
-      log("ERROR", `Error handling message: ${error}`);
+      log("ERROR", `Error processing aggregated messages: ${error}`);
+      return { status: "failed", error: String(error) };
     }
   }
   shouldReply(msg, settings) {
@@ -1557,6 +1701,19 @@ class WhatsAppClient {
       } catch (statsError) {
         log("ERROR", `Failed to update stats: ${statsError}`);
       }
+      const event = {
+        // using 'any' to avoid circular dep or full type import if not easy
+        contactId: draft.contactNumber + "@c.us",
+        contactName: draft.contactName,
+        messageCount: 1,
+        // approximate
+        aggregatedPrompt: draft.query,
+        costSaved: 0,
+        timestamp: Date.now(),
+        status: "sent",
+        error: void 0
+      };
+      this.broadcastToRenderer(IPC_CHANNELS.ON_QUEUE_PROCESSED, event);
       log("INFO", `Draft ${draftId} sent successfully`);
       return true;
     } catch (error) {

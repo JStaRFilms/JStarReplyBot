@@ -1,257 +1,214 @@
-import { MessageSquare, Clock, Target, TrendingUp, Activity, Edit3, Trash2, Bot, Inbox } from 'lucide-react'
-import { useStatsStore, useDraftsStore, useActivityStore } from '../store'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Users, MessageCircle, Clock, Target, Edit3, X, AlertOctagon, Trash2 } from 'lucide-react'
+import { useStatsStore, useDraftsStore, useSettingsStore, useFeedStore } from '../store'
+import { MetricCard } from '../components/MetricCard'
+import { SmartQueueWidget } from '../components/SmartQueueWidget'
+import { LiveFeed } from '../components/LiveFeed'
+import { QueueBufferItem, QueueProcessedEvent } from '../../../shared/types'
 
-export default function HomePage() {
+export default function Home() {
     const { stats } = useStatsStore()
-    const { drafts, removeDraft, updateDraft } = useDraftsStore()
-    const { activities } = useActivityStore()
+    const { drafts, removeDraft } = useDraftsStore()
+    const { settings } = useSettingsStore()
+    const { events: processedEvents, addEvent, clearFeed } = useFeedStore()
 
-    const formatTime = (minutes: number) => {
-        const hours = Math.floor(minutes / 60)
-        const mins = minutes % 60
-        return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-    }
+    const [queueItems, setQueueItems] = useState<QueueBufferItem[]>([])
 
-    const handleSendDraft = async (draftId: string, text: string) => {
-        const res = await window.electron.sendDraft(draftId, text)
-        if (res.success) {
-            removeDraft(draftId)
+    // Listen for Queue Events
+    useEffect(() => {
+        const unsubUpdate = window.electron.onQueueUpdate((items: QueueBufferItem[]) => {
+            setQueueItems(items)
+        })
+
+        const unsubProcessed = window.electron.onQueueProcessed((event: QueueProcessedEvent) => {
+            if (event.status === 'drafted') return // Don't show drafts in feed until sent
+            addEvent(event)
+        })
+
+        return () => {
+            unsubUpdate()
+            unsubProcessed()
         }
+    }, [])
+
+    const handleApproveDraft = async (id: string, text: string) => {
+        await window.electron.sendDraft(id, text)
+        removeDraft(id)
     }
 
-    const handleDiscardDraft = async (draftId: string) => {
-        const res = await window.electron.discardDraft(draftId)
-        if (res.success) {
-            removeDraft(draftId)
-        }
+    const handleDiscardDraft = async (id: string) => {
+        await window.electron.discardDraft(id)
+        removeDraft(id)
     }
+
+    const formatDuration = (totalMinutes: number) => {
+        if (totalMinutes < 1) return '0m'
+
+        const y = Math.floor(totalMinutes / 525600)
+        let rem = totalMinutes % 525600
+
+        const mo = Math.floor(rem / 43200)
+        rem %= 43200
+
+        const w = Math.floor(rem / 10080)
+        rem %= 10080
+
+        const d = Math.floor(rem / 1440)
+        rem %= 1440
+
+        const h = Math.floor(rem / 60)
+        const m = Math.floor(rem % 60)
+
+        // Show top 2 significant non-zero units
+        if (y > 0) return `${y}y ${mo}mo`
+        if (mo > 0) return `${mo}mo ${d}d` // Skip weeks for month view for cleaner "1mo 5d"
+        if (w > 0) return `${w}w ${d}d`
+        if (d > 0) return `${d}d ${h}h`
+        if (h > 0) return `${h}h ${m}m`
+        return `${m}m`
+    }
+
+    const getGreeting = () => {
+        const hour = new Date().getHours()
+        if (hour < 5) return { text: 'Late Night Hustle', icon: '🌚' }
+        if (hour < 12) return { text: 'Good Morning', icon: '☀️' }
+        if (hour < 17) return { text: 'Good Afternoon', icon: '🌤️' }
+        if (hour < 22) return { text: 'Good Evening', icon: '🌙' }
+        return { text: 'Good Night', icon: '✨' }
+    }
+
+    const greeting = getGreeting()
+    const displayName = settings?.businessProfile?.name || 'Partner'
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8">
-            {/* Stats Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard
-                    icon={MessageSquare}
-                    label="Messages Sent"
-                    value={stats.messagesSent.toString()}
-                    trend="+12% today"
-                    trendUp
+        <div className="space-y-8 max-w-7xl mx-auto">
+
+            {/* Greeting */}
+            <div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    {greeting.text}, {displayName} <span className="text-amber-500">{greeting.icon}</span>
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400">Your assistant is handling customers while you work.</p>
+            </div>
+
+            {/* Metrics (Compact) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <MetricCard
+                    label="Customers Helped"
+                    value={stats.messagesSent > 0 ? Math.floor(stats.messagesSent / 2) : 0} // Approx logic
+                    icon={Users}
+                    trend="+4 Today"
+                    trendColor="emerald"
                 />
-                <StatCard
-                    icon={Clock}
+                <MetricCard
+                    label="Smart Replies"
+                    value={stats.messagesSent}
+                    icon={MessageCircle}
+                />
+                <MetricCard
                     label="Time Saved"
-                    value={formatTime(stats.timeSavedMinutes)}
-                    subtitle="Based on 1m per reply"
+                    value={formatDuration(Math.floor(stats.messagesSent * 1.5))} // Approx 1.5m per msg
+                    icon={Clock}
                 />
-                <StatCard
-                    icon={Target}
+                <MetricCard
                     label="Leads Captured"
-                    value={stats.leadsCaptured.toString()}
-                    trend="New opportunities"
-                    trendUp
+                    value={stats.leadsCaptured || 0}
+                    icon={Target}
+                    trend="High Value"
+                    trendColor="amber"
                 />
             </div>
 
-            {/* Layout: 2/3 Main Feed, 1/3 Draft Queue */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left: Activity Feed */}
+
+                {/* Left: Live Feed (2/3) */}
                 <div className="lg:col-span-2 space-y-4">
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Activity className="w-5 h-5 text-brand-500" />
-                        Live Activity
-                    </h2>
-                    <div className="glass rounded-2xl divide-y divide-slate-100 dark:divide-white/5 max-h-[500px] overflow-y-auto custom-scrollbar">
-                        {activities.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-[400px] text-slate-400">
-                                <Inbox className="w-12 h-12 mb-3 opacity-30" />
-                                <p className="text-sm font-medium">No activity yet</p>
-                                <p className="text-xs mt-1">Messages will appear here once the bot responds</p>
-                            </div>
-                        ) : (
-                            activities.map(activity => (
-                                <ActivityItem
-                                    key={activity.id}
-                                    contact={activity.contact}
-                                    time={activity.time}
-                                    query={activity.query}
-                                    response={activity.response}
-                                />
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Right: Draft Queue */}
-                <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                            <Edit3 className="w-5 h-5 text-amber-500" />
-                            Draft Queue
-                        </h2>
-                        {drafts.length > 0 && (
-                            <span className="bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-500 text-xs font-bold px-2 py-0.5 rounded-full">
-                                {drafts.length}
-                            </span>
+                        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                            <MessageCircle className="w-4 h-4 text-brand-500" /> Recent Conversations
+                        </h3>
+                        {processedEvents.length > 0 && (
+                            <button
+                                onClick={clearFeed}
+                                className="text-xs text-slate-400 hover:text-rose-500 flex items-center gap-1 transition-colors"
+                            >
+                                <Trash2 className="w-3 h-3" /> Clear History
+                            </button>
                         )}
                     </div>
+                    <LiveFeed events={processedEvents} />
+                </div>
 
-                    <div className="glass rounded-xl p-1 max-h-[600px] overflow-y-auto space-y-3">
+                {/* Right: Widgets (1/3) */}
+                <div className="space-y-8">
+
+                    {/* Smart Queue */}
+                    <SmartQueueWidget items={queueItems} />
+
+                    {/* Drafts Widget */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                <Edit3 className="w-4 h-4 text-indigo-500" /> Needs Approval
+                            </h3>
+                            {drafts.length > 0 && (
+                                <span className="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                                    {drafts.length}
+                                </span>
+                            )}
+                        </div>
+
                         {drafts.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400">
-                                <Edit3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">No pending drafts</p>
+                            <div className="glass p-6 rounded-xl text-center border-dashed border-2 border-slate-200 dark:border-white/5">
+                                <p className="text-slate-400 text-sm">No drafts pending approval.</p>
                             </div>
                         ) : (
-                            drafts.map(draft => (
-                                <DraftCard
-                                    key={draft.id}
-                                    draft={draft}
-                                    onSend={(text) => handleSendDraft(draft.id, text)}
-                                    onDiscard={() => handleDiscardDraft(draft.id)}
-                                    onEdit={(text) => updateDraft(draft.id, text)}
-                                />
-                            ))
+                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+                                {drafts.map(draft => (
+                                    <div key={draft.id} className="glass p-5 rounded-xl border-l-4 border-l-indigo-500 relative">
+                                        <div className="flex justify-between mb-2">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                                                {draft.sentiment === 'high' && <AlertOctagon className="w-3 h-3 text-rose-500" />}
+                                                {draft.contactName}
+                                            </span>
+                                            <button
+                                                onClick={() => handleDiscardDraft(draft.id)}
+                                                className="text-slate-400 hover:text-rose-500 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        <div className="mb-3">
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">User asked:</p>
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white line-clamp-2">
+                                                "{draft.query}"
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <textarea
+                                                className="w-full bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 text-xs border border-slate-200 dark:border-white/10 focus:ring-2 ring-indigo-500/20 outline-none transition-all resize-none"
+                                                rows={3}
+                                                defaultValue={draft.proposedReply}
+                                                id={`text-${draft.id}`}
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    const el = document.getElementById(`text-${draft.id}`) as HTMLTextAreaElement
+                                                    handleApproveDraft(draft.id, el.value)
+                                                }}
+                                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-95"
+                                            >
+                                                Approve & Send
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
-                </div>
-            </div>
-        </div>
-    )
-}
 
-function StatCard({
-    icon: Icon,
-    label,
-    value,
-    trend,
-    trendUp,
-    subtitle
-}: {
-    icon: typeof MessageSquare
-    label: string
-    value: string
-    trend?: string
-    trendUp?: boolean
-    subtitle?: string
-}) {
-    return (
-        <div className="glass p-6 rounded-2xl relative overflow-hidden group">
-            <Icon className="absolute top-4 right-4 w-6 h-6 text-brand-400/20 group-hover:text-brand-400 transition-colors" />
-            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{label}</p>
-            <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{value}</h3>
-            {trend && (
-                <span className={`text-xs flex items-center gap-1 mt-2 ${trendUp ? 'text-emerald-500' : 'text-slate-400'}`}>
-                    {trendUp && <TrendingUp className="w-3 h-3" />}
-                    {trend}
-                </span>
-            )}
-            {subtitle && (
-                <span className="text-xs text-slate-400 mt-2 block">{subtitle}</span>
-            )}
-        </div>
-    )
-}
-
-function ActivityItem({ contact, time, query, response }: {
-    contact: string
-    time: string
-    query: string
-    response: string
-}) {
-    return (
-        <div className="p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-            <div className="flex justify-between items-start mb-1">
-                <span className="font-semibold text-slate-900 dark:text-white text-sm">{contact}</span>
-                <span className="text-xs text-slate-400">{time}</span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 italic">"{query}"</p>
-            <div className="bg-brand-50 dark:bg-brand-500/10 p-3 rounded-lg border border-brand-100 dark:border-brand-500/20">
-                <p className="text-sm text-slate-700 dark:text-slate-300">
-                    <Bot className="w-3 h-3 inline mr-1 text-brand-500" />
-                    {response}
-                </p>
-            </div>
-        </div>
-    )
-}
-
-function DraftCard({ draft, onSend, onDiscard, onEdit }: {
-    draft: { id: string; contactName: string; query: string; proposedReply: string; sentiment: string; createdAt: number }
-    onSend: (text: string) => void
-    onDiscard: () => void
-    onEdit: (text: string) => void
-}) {
-    const [text, setText] = useState(draft.proposedReply)
-
-    const timeAgo = () => {
-        const diff = Date.now() - draft.createdAt
-        if (diff < 60000) return 'Just now'
-        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-        return `${Math.floor(diff / 3600000)}h ago`
-    }
-
-    return (
-        <div className="bg-white dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm space-y-4">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-                <span className="text-[10px] text-slate-400 font-mono">{timeAgo()}</span>
-                {draft.sentiment === 'high' && (
-                    <span className="bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-[10px] font-bold">
-                        ⚠️ High Sentiment
-                    </span>
-                )}
-            </div>
-
-            {/* Chat Flow UI */}
-            <div className="space-y-3">
-                {/* Incoming User Message */}
-                <div className="flex justify-start">
-                    <div className="bg-slate-100 dark:bg-white/10 rounded-2xl rounded-tl-none px-4 py-3 max-w-[90%] space-y-1">
-                        <p className="text-xs font-bold text-slate-500">{draft.contactName}</p>
-                        <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">"{draft.query}"</p>
-                    </div>
-                </div>
-
-                {/* Proposed Bot Reply */}
-                <div className="flex justify-end">
-                    <div className="bg-brand-50/50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20 rounded-2xl rounded-tr-none p-3 w-full max-w-[95%]">
-                        <div className="mb-2 flex items-center justify-between">
-                            <span className="text-xs text-brand-600 dark:text-brand-400 font-semibold flex items-center gap-1">
-                                <Bot className="w-3 h-3" />
-                                Proposed Reply
-                            </span>
-                            <span className="text-[10px] text-brand-400/60 uppercase tracking-wider">Editable</span>
-                        </div>
-
-                        <textarea
-                            className="w-full bg-white dark:bg-black/20 text-sm text-slate-800 dark:text-slate-200 p-3 rounded-lg border border-brand-100 dark:border-white/5 focus:border-brand-500 outline-none resize-none transition-all placeholder:text-slate-400"
-                            rows={4}
-                            value={text}
-                            onChange={(e) => {
-                                setText(e.target.value)
-                                onEdit(e.target.value)
-                            }}
-                        />
-
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-brand-100 dark:border-white/5">
-                            <button
-                                onClick={onDiscard}
-                                className="px-3 py-1.5 border border-slate-200 dark:border-white/10 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-400 text-slate-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
-                                title="Discard Draft"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Discard
-                            </button>
-                            <button
-                                onClick={() => onSend(text)}
-                                className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-1.5 rounded-lg text-xs font-bold shadow-lg shadow-brand-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-2"
-                            >
-                                <Edit3 className="w-3.5 h-3.5" />
-                                Approve & Send
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

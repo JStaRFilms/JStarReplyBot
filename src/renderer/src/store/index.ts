@@ -171,4 +171,5 @@ export const useActivityStore = create<ActivityState>((set) => ({
 }))
 
 export * from './catalogStore'
+export * from './feedStore'
 

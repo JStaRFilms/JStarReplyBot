@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JStarReplyBot - Smart Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 900: '#312e81' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            color: #1e293b;
+            transition: all 0.3s;
+        }
+
+        .dark body {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            box-shadow: 0 4px 6px -1px rgba(148, 163, 184, 0.1);
+        }
+
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border-color: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body class="p-8 min-h-screen">
+
+    <!-- Top Nav -->
+    <nav class="flex items-center justify-between mb-10">
+        <div class="flex items-center gap-3">
+            <div
+                class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-900 flex items-center justify-center font-bold text-white shadow-lg">
+                J</div>
+            <h1 class="font-bold text-xl tracking-tight text-slate-900 dark:text-white">JStarReplyBot</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- Queue Activity Indicator (Subtle, for User) -->
+            <div class="hidden flex items-center gap-2 px-3 py-1.5 glass rounded-full ring-1 ring-amber-500/20"
+                id="queue-indicator">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                <span class="text-xs font-semibold text-amber-600 dark:text-amber-400">3 Customers Typing...</span>
+            </div>
+
+            <div class="flex items-center gap-2 px-3 py-1.5 glass rounded-full ring-1 ring-emerald-500/20">
+                <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Online</span>
+            </div>
+
+            <button onclick="document.documentElement.classList.toggle('dark')"
+                class="glass p-2 rounded-full hover:scale-110 transition-transform">
+                <i data-lucide="moon" class="w-4 h-4 hidden dark:block text-slate-300"></i>
+                <i data-lucide="sun" class="w-4 h-4 block dark:hidden text-slate-600"></i>
+            </button>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto space-y-8">
+
+        <!-- Welcome Section -->
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Good Morning, John ☀️</h2>
+            <p class="text-slate-500 dark:text-slate-400">Your assistant is handling customers while you work.</p>
+        </div>
+
+        <!-- Metric Cards (Compact & Single Row) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Customers Helped -->
+            <div class="glass p-4 rounded-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-md text-brand-600 dark:text-brand-400">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-[10px] font-bold bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full">+4
+                        Today</span>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 dark:text-white">12</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Customers Helped</p>
+            </div>
+
+            <!-- Smart Replies -->
+            <div class="glass p-4 rounded-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-md text-brand-600 dark:text-brand-400">
+                        <i data-lucide="message-circle" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 dark:text-white">45</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Smart Replies</p>
+            </div>
+
+            <!-- Time Saved -->
+            <div class="glass p-4 rounded-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-md text-brand-600 dark:text-brand-400">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 dark:text-white">~40m</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Time Saved</p>
+            </div>
+
+            <!-- Leads Captured -->
+            <div class="glass p-4 rounded-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-1.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-md text-brand-600 dark:text-brand-400">
+                        <i data-lucide="target" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">High
+                        Value</span>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900 dark:text-white">5</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Leads Captured</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Live Conversations Feed -->
+            <div class="lg:col-span-2 space-y-4">
+                <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="zap" class="w-4 h-4 text-brand-500"></i> Recent Conversations
+                </h3>
+
+                <div class="glass rounded-2xl p-1 min-h-[400px]">
+
+                    <!-- Conversation Item (Smart Grouped) -->
+                    <div
+                        class="p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors rounded-xl cursor-default group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300">
+                                    JD</div>
+                                <div>
+                                    <h4 class="font-bold text-sm text-slate-900 dark:text-white">John Doe</h4>
+                                    <p class="text-xs text-slate-500">Just now</p>
+                                </div>
+                            </div>
+                            <span
+                                class="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-1 rounded uppercase">Replied
+                                Automatically</span>
+                        </div>
+
+                        <!-- User's "Grouped" Messages -->
+                        <div class="ml-13 pl-4 border-l-2 border-indigo-200 dark:border-indigo-500/30 space-y-1 py-1">
+                            <p class="text-sm text-slate-600 dark:text-slate-400">"Hello"</p>
+                            <p class="text-sm text-slate-600 dark:text-slate-400">"Where is your shop?"</p>
+                        </div>
+
+                        <!-- Bot Response -->
+                        <div
+                            class="mt-3 ml-13 bg-indigo-50 dark:bg-indigo-500/10 p-3 rounded-tr-xl rounded-br-xl rounded-bl-xl text-sm text-slate-800 dark:text-slate-200 leading-relaxed shadow-sm">
+                            We are located at 123 Main St, Lagos. We are open until 8pm! 🏪
+                        </div>
+                    </div>
+
+                    <!-- Conversation Item -->
+                    <div
+                        class="p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors rounded-xl cursor-default group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300">
+                                    SK</div>
+                                <div>
+                                    <h4 class="font-bold text-sm text-slate-900 dark:text-white">Sarah Klein</h4>
+                                    <p class="text-xs text-slate-500">5m ago</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ml-13 pl-4 border-l-2 border-indigo-200 dark:border-indigo-500/30 space-y-1 py-1">
+                            <p class="text-sm text-slate-600 dark:text-slate-400">"Do you have sizing chart?"</p>
+                        </div>
+
+                        <div
+                            class="mt-3 ml-13 bg-indigo-50 dark:bg-indigo-500/10 p-3 rounded-tr-xl rounded-br-xl rounded-bl-xl text-sm text-slate-800 dark:text-slate-200 leading-relaxed shadow-sm">
+                            Yes! You can view our size guide here: [Link]. Let me know if you need help measuring. 📏
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- "Smart Queue" Widget (Simplified) -->
+            <div class="space-y-6">
+
+                <!-- Active Queue (The "Waiting" List) -->
+                <div>
+                    <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                        <i data-lucide="clock" class="w-4 h-4 text-amber-500"></i> Waiting for Reply
+                    </h3>
+
+                    <div class="glass rounded-2xl p-4 space-y-3">
+                        <!-- Queue Item -->
+                        <div class="flex items-center justify-between p-2">
+                            <div class="flex items-center gap-3">
+                                <div class="relative">
+                                    <div
+                                        class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-600 text-xs">
+                                        MK</div>
+                                    <div
+                                        class="absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5">
+                                        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold text-slate-900 dark:text-white">Mike King</p>
+                                    <p class="text-xs text-slate-500 animate-pulse">Typing...</p>
+                                </div>
+                            </div>
+                            <span class="text-xs font-mono text-slate-400">03s</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-2 text-center">Bot waits 10s for customer to finish typing.</p>
+                </div>
+
+                <!-- Drafts (Action Needed) -->
+                <div>
+                    <h3 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                        <i data-lucide="edit-3" class="w-4 h-4 text-indigo-500"></i> Needs Approval
+                    </h3>
+
+                    <div class="glass rounded-2xl p-4 border-l-4 border-l-indigo-500">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-xs font-bold text-slate-500">UNKNOWN QUESTION</span>
+                            <button class="text-xs text-rose-500 hover:text-rose-600"><i data-lucide="x"
+                                    class="w-4 h-4"></i></button>
+                        </div>
+                        <p class="text-sm font-medium text-slate-900 dark:text-white mb-2">"Can I pay in Crypto?"</p>
+                        <textarea
+                            class="w-full bg-slate-50 dark:bg-slate-900/50 rounded p-2 text-xs mb-2 border border-slate-200 dark:border-white/10"
+                            rows="2">I'm sorry, we only accept Bank Transfer and Card payments at the moment.</textarea>
+                        <button
+                            class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs font-bold transition-colors">Approve
+                            & Send</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>lucide.createIcons();</script>
+</body>
+
+</html>
