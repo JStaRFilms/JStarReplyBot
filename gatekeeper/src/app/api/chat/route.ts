@@ -20,26 +20,7 @@ function getNextMasterKey() {
     return key
 }
 
-// 2. LemonSqueezy Validation Stub
-async function validateLicense(key: string) {
-    // For MVP, we can just check if it fits a pattern or hit the API
-    // If you want to enable real LS validation server-side:
-    /*
-    const res = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ license_key: key })
-    })
-    const data = await res.json()
-    return data.valid
-    */
-
-    // DEV MODE: Allow anything starting with "TEST-"
-    if (process.env.NODE_ENV === 'development') return true
-
-    // TODO: Enable real validation
-    return true
-}
+import { validateLicense } from '@/lib/license.service'
 
 export async function POST(req: Request) {
     try {

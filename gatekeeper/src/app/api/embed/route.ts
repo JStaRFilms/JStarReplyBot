@@ -1,12 +1,7 @@
 import { embed } from 'ai'
 import { google } from '@ai-sdk/google'
 
-// LemonSqueezy Validation Stub (Duplicate of chat route for now, refactor later)
-async function validateLicense(key: string) {
-    if (process.env.NODE_ENV === 'development') return true
-    // TODO: Real validation
-    return true
-}
+import { validateLicense } from '@/lib/license.service'
 
 export async function POST(req: Request) {
     try {
