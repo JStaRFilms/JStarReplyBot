@@ -1,4 +1,3 @@
-import { useRef, useEffect } from 'react'
 import { Zap, AlertCircle, MinusCircle, FileText } from 'lucide-react'
 import { QueueProcessedEvent } from '../../../shared/types'
 
@@ -7,15 +6,6 @@ type LiveFeedProps = {
 }
 
 export function LiveFeed({ events }: LiveFeedProps) {
-    const bottomRef = useRef<HTMLDivElement>(null)
-
-    // Auto-scroll to bottom of feed
-    useEffect(() => {
-        if (bottomRef.current) {
-            bottomRef.current.scrollIntoView({ behavior: 'smooth' })
-        }
-    }, [events])
-
     if (events.length === 0) {
         return (
             <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px] text-center">
@@ -82,7 +72,6 @@ export function LiveFeed({ events }: LiveFeedProps) {
                     </div>
                 </div>
             ))}
-            <div ref={bottomRef} />
         </div>
     )
 }

@@ -13,9 +13,13 @@ export const useFeedStore = create<FeedState>()(
         (set) => ({
             events: [],
             addEvent: (event) => set((state) => {
-                // Prevent duplicates if needed, or just append
-                // Keep last 50 events
-                return { events: [...state.events.slice(-49), event] }
+                const newEvents = [event, ...state.events]
+                // Keep last 50, sorted by timestamp descending
+                return {
+                    events: newEvents
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .slice(0, 50)
+                }
             }),
             clearFeed: () => set({ events: [] })
         }),

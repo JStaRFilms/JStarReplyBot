@@ -7107,38 +7107,9 @@ const createLucideIcon = (iconName, iconNode) => {
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const Activity = createLucideIcon("Activity", [
-  [
-    "path",
-    {
-      d: "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2",
-      key: "169zse"
-    }
-  ]
-]);
-/**
- * @license lucide-react v0.468.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
 const ArrowLeft = createLucideIcon("ArrowLeft", [
   ["path", { d: "m12 19-7-7 7-7", key: "1l729n" }],
   ["path", { d: "M19 12H5", key: "x3x0zl" }]
-]);
-/**
- * @license lucide-react v0.468.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const Bot = createLucideIcon("Bot", [
-  ["path", { d: "M12 8V4H8", key: "hb8ula" }],
-  ["rect", { width: "16", height: "12", x: "4", y: "8", rx: "2", key: "enze0r" }],
-  ["path", { d: "M2 14h2", key: "vft8re" }],
-  ["path", { d: "M20 14h2", key: "4cs60a" }],
-  ["path", { d: "M15 13v2", key: "1xurst" }],
-  ["path", { d: "M9 13v2", key: "rq6x2g" }]
 ]);
 /**
  * @license lucide-react v0.468.0 - ISC
@@ -7168,6 +7139,27 @@ const Brain = createLucideIcon("Brain", [
   ["path", { d: "M19.938 10.5a4 4 0 0 1 .585.396", key: "1qfode" }],
   ["path", { d: "M6 18a4 4 0 0 1-1.967-.516", key: "2e4loj" }],
   ["path", { d: "M19.967 17.484A4 4 0 0 1 18 18", key: "159ez6" }]
+]);
+/**
+ * @license lucide-react v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const CircleAlert = createLucideIcon("CircleAlert", [
+  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
+  ["line", { x1: "12", x2: "12", y1: "8", y2: "12", key: "1pkeuh" }],
+  ["line", { x1: "12", x2: "12.01", y1: "16", y2: "16", key: "4dfq90" }]
+]);
+/**
+ * @license lucide-react v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const CircleMinus = createLucideIcon("CircleMinus", [
+  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
+  ["path", { d: "M8 12h8", key: "1wcyev" }]
 ]);
 /**
  * @license lucide-react v0.468.0 - ISC
@@ -7237,22 +7229,6 @@ const House = createLucideIcon("House", [
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const Inbox = createLucideIcon("Inbox", [
-  ["polyline", { points: "22 12 16 12 14 15 10 15 8 12 2 12", key: "o97t9d" }],
-  [
-    "path",
-    {
-      d: "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
-      key: "oot6mr"
-    }
-  ]
-]);
-/**
- * @license lucide-react v0.468.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
 const Info = createLucideIcon("Info", [
   ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
   ["path", { d: "M12 16v-4", key: "1dtifu" }],
@@ -7274,8 +7250,8 @@ const Link = createLucideIcon("Link", [
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const MessageSquare = createLucideIcon("MessageSquare", [
-  ["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", key: "1lielz" }]
+const MessageCircle = createLucideIcon("MessageCircle", [
+  ["path", { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z", key: "vv11sd" }]
 ]);
 /**
  * @license lucide-react v0.468.0 - ISC
@@ -7285,6 +7261,23 @@ const MessageSquare = createLucideIcon("MessageSquare", [
  */
 const Moon = createLucideIcon("Moon", [
   ["path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z", key: "a7tn18" }]
+]);
+/**
+ * @license lucide-react v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const OctagonAlert = createLucideIcon("OctagonAlert", [
+  ["path", { d: "M12 16h.01", key: "1drbdi" }],
+  ["path", { d: "M12 8v4", key: "1got3b" }],
+  [
+    "path",
+    {
+      d: "M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z",
+      key: "1fd625"
+    }
+  ]
 ]);
 /**
  * @license lucide-react v0.468.0 - ISC
@@ -7475,16 +7468,6 @@ const Trash2 = createLucideIcon("Trash2", [
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const TrendingUp = createLucideIcon("TrendingUp", [
-  ["polyline", { points: "22 7 13.5 15.5 8.5 10.5 2 17", key: "126l90" }],
-  ["polyline", { points: "16 7 22 7 22 13", key: "kwv8wd" }]
-]);
-/**
- * @license lucide-react v0.468.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
 const TriangleAlert = createLucideIcon("TriangleAlert", [
   [
     "path",
@@ -7502,9 +7485,36 @@ const TriangleAlert = createLucideIcon("TriangleAlert", [
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
+const Users = createLucideIcon("Users", [
+  ["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", key: "1yyitq" }],
+  ["circle", { cx: "9", cy: "7", r: "4", key: "nufk8" }],
+  ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87", key: "kshegd" }],
+  ["path", { d: "M16 3.13a4 4 0 0 1 0 7.75", key: "1da9ce" }]
+]);
+/**
+ * @license lucide-react v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
 const X = createLucideIcon("X", [
   ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
   ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
+]);
+/**
+ * @license lucide-react v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+const Zap = createLucideIcon("Zap", [
+  [
+    "path",
+    {
+      d: "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z",
+      key: "1xq2db"
+    }
+  ]
 ]);
 const createStoreImpl = (createState) => {
   let state;
@@ -7559,6 +7569,210 @@ const useCatalogStore = create((set) => ({
     catalog: state.catalog.filter((item) => item.id !== id)
   }))
 }));
+function createJSONStorage(getStorage, options) {
+  let storage;
+  try {
+    storage = getStorage();
+  } catch (e) {
+    return;
+  }
+  const persistStorage = {
+    getItem: (name) => {
+      var _a;
+      const parse = (str2) => {
+        if (str2 === null) {
+          return null;
+        }
+        return JSON.parse(str2, void 0);
+      };
+      const str = (_a = storage.getItem(name)) != null ? _a : null;
+      if (str instanceof Promise) {
+        return str.then(parse);
+      }
+      return parse(str);
+    },
+    setItem: (name, newValue) => storage.setItem(name, JSON.stringify(newValue, void 0)),
+    removeItem: (name) => storage.removeItem(name)
+  };
+  return persistStorage;
+}
+const toThenable = (fn) => (input) => {
+  try {
+    const result = fn(input);
+    if (result instanceof Promise) {
+      return result;
+    }
+    return {
+      then(onFulfilled) {
+        return toThenable(onFulfilled)(result);
+      },
+      catch(_onRejected) {
+        return this;
+      }
+    };
+  } catch (e) {
+    return {
+      then(_onFulfilled) {
+        return this;
+      },
+      catch(onRejected) {
+        return toThenable(onRejected)(e);
+      }
+    };
+  }
+};
+const persistImpl = (config, baseOptions) => (set, get, api) => {
+  let options = {
+    storage: createJSONStorage(() => localStorage),
+    partialize: (state) => state,
+    version: 0,
+    merge: (persistedState, currentState) => ({
+      ...currentState,
+      ...persistedState
+    }),
+    ...baseOptions
+  };
+  let hasHydrated = false;
+  const hydrationListeners = /* @__PURE__ */ new Set();
+  const finishHydrationListeners = /* @__PURE__ */ new Set();
+  let storage = options.storage;
+  if (!storage) {
+    return config(
+      (...args) => {
+        console.warn(
+          `[zustand persist middleware] Unable to update item '${options.name}', the given storage is currently unavailable.`
+        );
+        set(...args);
+      },
+      get,
+      api
+    );
+  }
+  const setItem = () => {
+    const state = options.partialize({ ...get() });
+    return storage.setItem(options.name, {
+      state,
+      version: options.version
+    });
+  };
+  const savedSetState = api.setState;
+  api.setState = (state, replace) => {
+    savedSetState(state, replace);
+    return setItem();
+  };
+  const configResult = config(
+    (...args) => {
+      set(...args);
+      return setItem();
+    },
+    get,
+    api
+  );
+  api.getInitialState = () => configResult;
+  let stateFromStorage;
+  const hydrate = () => {
+    var _a, _b;
+    if (!storage) return;
+    hasHydrated = false;
+    hydrationListeners.forEach((cb) => {
+      var _a2;
+      return cb((_a2 = get()) != null ? _a2 : configResult);
+    });
+    const postRehydrationCallback = ((_b = options.onRehydrateStorage) == null ? void 0 : _b.call(options, (_a = get()) != null ? _a : configResult)) || void 0;
+    return toThenable(storage.getItem.bind(storage))(options.name).then((deserializedStorageValue) => {
+      if (deserializedStorageValue) {
+        if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options.version) {
+          if (options.migrate) {
+            const migration = options.migrate(
+              deserializedStorageValue.state,
+              deserializedStorageValue.version
+            );
+            if (migration instanceof Promise) {
+              return migration.then((result) => [true, result]);
+            }
+            return [true, migration];
+          }
+          console.error(
+            `State loaded from storage couldn't be migrated since no migrate function was provided`
+          );
+        } else {
+          return [false, deserializedStorageValue.state];
+        }
+      }
+      return [false, void 0];
+    }).then((migrationResult) => {
+      var _a2;
+      const [migrated, migratedState] = migrationResult;
+      stateFromStorage = options.merge(
+        migratedState,
+        (_a2 = get()) != null ? _a2 : configResult
+      );
+      set(stateFromStorage, true);
+      if (migrated) {
+        return setItem();
+      }
+    }).then(() => {
+      postRehydrationCallback == null ? void 0 : postRehydrationCallback(stateFromStorage, void 0);
+      stateFromStorage = get();
+      hasHydrated = true;
+      finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
+    }).catch((e) => {
+      postRehydrationCallback == null ? void 0 : postRehydrationCallback(void 0, e);
+    });
+  };
+  api.persist = {
+    setOptions: (newOptions) => {
+      options = {
+        ...options,
+        ...newOptions
+      };
+      if (newOptions.storage) {
+        storage = newOptions.storage;
+      }
+    },
+    clearStorage: () => {
+      storage == null ? void 0 : storage.removeItem(options.name);
+    },
+    getOptions: () => options,
+    rehydrate: () => hydrate(),
+    hasHydrated: () => hasHydrated,
+    onHydrate: (cb) => {
+      hydrationListeners.add(cb);
+      return () => {
+        hydrationListeners.delete(cb);
+      };
+    },
+    onFinishHydration: (cb) => {
+      finishHydrationListeners.add(cb);
+      return () => {
+        finishHydrationListeners.delete(cb);
+      };
+    }
+  };
+  if (!options.skipHydration) {
+    hydrate();
+  }
+  return stateFromStorage || configResult;
+};
+const persist = persistImpl;
+const useFeedStore = create()(
+  persist(
+    (set) => ({
+      events: [],
+      addEvent: (event) => set((state) => {
+        const newEvents = [event, ...state.events];
+        return {
+          events: newEvents.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50)
+        };
+      }),
+      clearFeed: () => set({ events: [] })
+    }),
+    {
+      name: "jstar-feed-storage",
+      storage: createJSONStorage(() => localStorage)
+    }
+  )
+);
 const useAppStore = create((set) => ({
   connectionStatus: "disconnected",
   isRunning: false,
@@ -7591,7 +7805,11 @@ const defaultSettings = {
     targetAudience: "",
     tone: "professional",
     description: ""
-  }
+  },
+  botName: "JStar",
+  currency: "₦",
+  licenseStatus: "trial",
+  licensePlan: "free"
 };
 const useSettingsStore = create((set) => ({
   settings: defaultSettings,
@@ -7635,209 +7853,309 @@ const useActivityStore = create((set) => ({
   })),
   setActivities: (activities) => set({ activities })
 }));
-function HomePage() {
+function MetricCard({ label, value, icon: Icon2, trend, trendColor = "emerald" }) {
+  const trendColors = {
+    emerald: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+    amber: "bg-amber-100 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+    rose: "bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400",
+    brand: "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 p-4 rounded-xl shadow-sm transition-all hover:border-indigo-500/30", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-start mb-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "p-1.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-md text-indigo-600 dark:text-indigo-400", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Icon2, { className: "w-4 h-4" }) }),
+      trend && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[10px] font-bold px-1.5 py-0.5 rounded-full ${trendColors[trendColor]}`, children: trend })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-2xl font-bold text-slate-900 dark:text-white tracking-tight", children: value }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 dark:text-slate-400 font-medium", children: label })
+  ] });
+}
+function SmartQueueWidget({ items }) {
+  const [now, setNow] = reactExports.useState(Date.now());
+  reactExports.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1e3);
+    return () => clearInterval(interval);
+  }, []);
+  if (items.length === 0) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 rounded-xl p-6 text-center", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-12 h-12 bg-slate-100 dark:bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Clock, { className: "w-6 h-6" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-sm font-semibold text-slate-900 dark:text-white mb-1", children: "Queue Empty" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "Bot is ready for new messages." })
+    ] });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 mb-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Clock, { className: "w-4 h-4 text-amber-500" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "font-semibold text-slate-900 dark:text-white text-sm", children: "Waiting for Reply" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 rounded-xl p-4 space-y-3", children: items.map((item) => {
+      const remaining = Math.max(0, Math.ceil((item.expiresAt - now) / 1e3));
+      const progress = Math.min(100, remaining / 10 * 100);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative group", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between p-2 relative z-10", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center font-bold text-amber-600 dark:text-amber-500 text-xs", children: item.contactName?.substring(0, 2).toUpperCase() || "UNKNOWN" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 rounded-full bg-emerald-500 animate-pulse" }) })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm font-bold text-slate-900 dark:text-white truncate max-w-[120px]", children: item.contactName || item.contactId }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 animate-pulse", children: "Buffering..." })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs font-mono text-slate-400 font-medium", children: [
+            remaining,
+            "s"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "absolute bottom-0 left-0 h-0.5 bg-amber-500/50 transition-all duration-1000 ease-linear",
+            style: { width: `${progress}%` }
+          }
+        )
+      ] }, item.contactId);
+    }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[10px] text-slate-400 text-center", children: "Bot waits 10s for customer to finish typing." })
+  ] });
+}
+function LiveFeed({ events }) {
+  if (events.length === 0) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px] text-center", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-12 h-12 bg-slate-100 dark:bg-slate-700/50 rounded-full flex items-center justify-center mb-4 text-slate-400", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Zap, { className: "w-6 h-6" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-lg font-semibold text-slate-900 dark:text-white", children: "No Activity Yet" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-slate-500 max-w-[200px] mt-1", children: "Waiting for customers to send messages to the bot." })
+    ] });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 rounded-2xl p-1 min-h-[400px] max-h-[600px] overflow-y-auto", children: events.map((event, index) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors rounded-xl cursor-default group border-b border-transparent hover:border-slate-100 dark:hover:border-white/5 last:border-0", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-start mb-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300", children: event.contactName?.substring(0, 2).toUpperCase() || "UK" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "font-bold text-sm text-slate-900 dark:text-white", children: event.contactName || event.contactId }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })
+        ] })
+      ] }),
+      event.status === "sent" && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded uppercase flex items-center gap-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Zap, { className: "w-3 h-3" }),
+        " Replied"
+      ] }),
+      event.status === "drafted" && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-1 rounded uppercase flex items-center gap-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(FileText, { className: "w-3 h-3" }),
+        " Drafted"
+      ] }),
+      event.status === "failed" && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-bold bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 px-2 py-1 rounded uppercase flex items-center gap-1", title: event.error, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CircleAlert, { className: "w-3 h-3" }),
+        " Failed"
+      ] }),
+      event.status === "skipped" && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-bold bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 px-2 py-1 rounded uppercase flex items-center gap-1", title: event.error, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CircleMinus, { className: "w-3 h-3" }),
+        " Skipped"
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `ml-13 pl-4 border-l-2 ${event.status === "failed" ? "border-rose-200 dark:border-rose-500/30" : "border-indigo-200 dark:border-indigo-500/30"} space-y-1 py-1`, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm text-slate-600 dark:text-slate-400 italic", children: [
+        "Matched ",
+        event.messageCount,
+        " messages..."
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-slate-500 truncate opacity-75", children: [
+        '"',
+        event.aggregatedPrompt.substring(0, 80),
+        event.aggregatedPrompt.length > 80 ? "..." : "",
+        '"'
+      ] }),
+      event.error && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-rose-500 font-medium", children: [
+        "Error: ",
+        event.error
+      ] })
+    ] })
+  ] }, index)) });
+}
+function Home() {
   const { stats } = useStatsStore();
-  const { drafts, removeDraft, updateDraft } = useDraftsStore();
-  const { activities } = useActivityStore();
-  const formatTime = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  const { drafts, removeDraft } = useDraftsStore();
+  const { settings } = useSettingsStore();
+  const { events: processedEvents, addEvent, clearFeed } = useFeedStore();
+  const [queueItems, setQueueItems] = reactExports.useState([]);
+  reactExports.useEffect(() => {
+    const unsubUpdate = window.electron.onQueueUpdate((items) => {
+      setQueueItems(items);
+    });
+    const unsubProcessed = window.electron.onQueueProcessed((event) => {
+      if (event.status === "drafted") return;
+      addEvent(event);
+    });
+    return () => {
+      unsubUpdate();
+      unsubProcessed();
+    };
+  }, []);
+  const handleApproveDraft = async (id, text) => {
+    await window.electron.sendDraft(id, text);
+    removeDraft(id);
   };
-  const handleSendDraft = async (draftId, text) => {
-    const res = await window.electron.sendDraft(draftId, text);
-    if (res.success) {
-      removeDraft(draftId);
-    }
+  const handleDiscardDraft = async (id) => {
+    await window.electron.discardDraft(id);
+    removeDraft(id);
   };
-  const handleDiscardDraft = async (draftId) => {
-    const res = await window.electron.discardDraft(draftId);
-    if (res.success) {
-      removeDraft(draftId);
-    }
+  const formatDuration = (totalMinutes) => {
+    if (totalMinutes < 1) return "0m";
+    const y = Math.floor(totalMinutes / 525600);
+    let rem = totalMinutes % 525600;
+    const mo = Math.floor(rem / 43200);
+    rem %= 43200;
+    const w = Math.floor(rem / 10080);
+    rem %= 10080;
+    const d = Math.floor(rem / 1440);
+    rem %= 1440;
+    const h = Math.floor(rem / 60);
+    const m = Math.floor(rem % 60);
+    if (y > 0) return `${y}y ${mo}mo`;
+    if (mo > 0) return `${mo}mo ${d}d`;
+    if (w > 0) return `${w}w ${d}d`;
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "max-w-6xl mx-auto space-y-8", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-6", children: [
+  const getGreeting = () => {
+    const hour = (/* @__PURE__ */ new Date()).getHours();
+    if (hour < 5) return { text: "Late Night Hustle", icon: "🌚" };
+    if (hour < 12) return { text: "Good Morning", icon: "☀️" };
+    if (hour < 17) return { text: "Good Afternoon", icon: "🌤️" };
+    if (hour < 22) return { text: "Good Evening", icon: "🌙" };
+    return { text: "Good Night", icon: "✨" };
+  };
+  const greeting = getGreeting();
+  const displayName = settings?.businessProfile?.name || "Partner";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-8 max-w-7xl mx-auto", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("h2", { className: "text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2", children: [
+        greeting.text,
+        ", ",
+        displayName,
+        " ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-amber-500", children: greeting.icon })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-slate-500 dark:text-slate-400", children: "Your assistant is handling customers while you work." })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatCard,
+        MetricCard,
         {
-          icon: MessageSquare,
-          label: "Messages Sent",
-          value: stats.messagesSent.toString(),
-          trend: "+12% today",
-          trendUp: true
+          label: "Customers Helped",
+          value: stats.messagesSent > 0 ? Math.floor(stats.messagesSent / 2) : 0,
+          icon: Users,
+          trend: "+4 Today",
+          trendColor: "emerald"
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatCard,
+        MetricCard,
         {
-          icon: Clock,
+          label: "Smart Replies",
+          value: stats.messagesSent,
+          icon: MessageCircle
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        MetricCard,
+        {
           label: "Time Saved",
-          value: formatTime(stats.timeSavedMinutes),
-          subtitle: "Based on 1m per reply"
+          value: formatDuration(Math.floor(stats.messagesSent * 1.5)),
+          icon: Clock
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatCard,
+        MetricCard,
         {
-          icon: Target,
           label: "Leads Captured",
-          value: stats.leadsCaptured.toString(),
-          trend: "New opportunities",
-          trendUp: true
+          value: stats.leadsCaptured || 0,
+          icon: Target,
+          trend: "High Value",
+          trendColor: "amber"
         }
       )
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 lg:grid-cols-3 gap-8", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "lg:col-span-2 space-y-4", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("h2", { className: "text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Activity, { className: "w-5 h-5 text-brand-500" }),
-          "Live Activity"
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "glass rounded-2xl divide-y divide-slate-100 dark:divide-white/5 max-h-[500px] overflow-y-auto custom-scrollbar", children: activities.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col items-center justify-center h-[400px] text-slate-400", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Inbox, { className: "w-12 h-12 mb-3 opacity-30" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm font-medium", children: "No activity yet" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs mt-1", children: "Messages will appear here once the bot responds" })
-        ] }) : activities.map((activity) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ActivityItem,
-          {
-            contact: activity.contact,
-            time: activity.time,
-            query: activity.query,
-            response: activity.response
-          },
-          activity.id
-        )) })
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("h2", { className: "text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(PenLine, { className: "w-5 h-5 text-amber-500" }),
-            "Draft Queue"
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "font-semibold text-slate-900 dark:text-white flex items-center gap-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCircle, { className: "w-4 h-4 text-brand-500" }),
+            " Recent Conversations"
           ] }),
-          drafts.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-500 text-xs font-bold px-2 py-0.5 rounded-full", children: drafts.length })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "glass rounded-xl p-1 max-h-[600px] overflow-y-auto space-y-3", children: drafts.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center py-12 text-slate-400", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(PenLine, { className: "w-8 h-8 mx-auto mb-2 opacity-50" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm", children: "No pending drafts" })
-        ] }) : drafts.map((draft) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          DraftCard,
-          {
-            draft,
-            onSend: (text) => handleSendDraft(draft.id, text),
-            onDiscard: () => handleDiscardDraft(draft.id),
-            onEdit: (text) => updateDraft(draft.id, text)
-          },
-          draft.id
-        )) })
-      ] })
-    ] })
-  ] });
-}
-function StatCard({
-  icon: Icon2,
-  label,
-  value,
-  trend,
-  trendUp,
-  subtitle
-}) {
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "glass p-6 rounded-2xl relative overflow-hidden group", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Icon2, { className: "absolute top-4 right-4 w-6 h-6 text-brand-400/20 group-hover:text-brand-400 transition-colors" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-slate-500 dark:text-slate-400 font-medium", children: label }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-3xl font-bold text-slate-900 dark:text-white mt-1", children: value }),
-    trend && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: `text-xs flex items-center gap-1 mt-2 ${trendUp ? "text-emerald-500" : "text-slate-400"}`, children: [
-      trendUp && /* @__PURE__ */ jsxRuntimeExports.jsx(TrendingUp, { className: "w-3 h-3" }),
-      trend
-    ] }),
-    subtitle && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-slate-400 mt-2 block", children: subtitle })
-  ] });
-}
-function ActivityItem({ contact, time, query, response }) {
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-start mb-1", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-semibold text-slate-900 dark:text-white text-sm", children: contact }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-slate-400", children: time })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-slate-500 dark:text-slate-400 mb-2 italic", children: [
-      '"',
-      query,
-      '"'
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-brand-50 dark:bg-brand-500/10 p-3 rounded-lg border border-brand-100 dark:border-brand-500/20", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm text-slate-700 dark:text-slate-300", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Bot, { className: "w-3 h-3 inline mr-1 text-brand-500" }),
-      response
-    ] }) })
-  ] });
-}
-function DraftCard({ draft, onSend, onDiscard, onEdit }) {
-  const [text, setText] = reactExports.useState(draft.proposedReply);
-  const timeAgo = () => {
-    const diff = Date.now() - draft.createdAt;
-    if (diff < 6e4) return "Just now";
-    if (diff < 36e5) return `${Math.floor(diff / 6e4)}m ago`;
-    return `${Math.floor(diff / 36e5)}h ago`;
-  };
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-white dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm space-y-4", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-center", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] text-slate-400 font-mono", children: timeAgo() }),
-      draft.sentiment === "high" && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-[10px] font-bold", children: "⚠️ High Sentiment" })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-start", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-slate-100 dark:bg-white/10 rounded-2xl rounded-tl-none px-4 py-3 max-w-[90%] space-y-1", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-bold text-slate-500", children: draft.contactName }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium", children: [
-          '"',
-          draft.query,
-          '"'
-        ] })
-      ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-end", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-brand-50/50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20 rounded-2xl rounded-tr-none p-3 w-full max-w-[95%]", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-2 flex items-center justify-between", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs text-brand-600 dark:text-brand-400 font-semibold flex items-center gap-1", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Bot, { className: "w-3 h-3" }),
-            "Proposed Reply"
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] text-brand-400/60 uppercase tracking-wider", children: "Editable" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "textarea",
-          {
-            className: "w-full bg-white dark:bg-black/20 text-sm text-slate-800 dark:text-slate-200 p-3 rounded-lg border border-brand-100 dark:border-white/5 focus:border-brand-500 outline-none resize-none transition-all placeholder:text-slate-400",
-            rows: 4,
-            value: text,
-            onChange: (e) => {
-              setText(e.target.value);
-              onEdit(e.target.value);
-            }
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 mt-3 pt-3 border-t border-brand-100 dark:border-white/5", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          processedEvents.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              onClick: onDiscard,
-              className: "px-3 py-1.5 border border-slate-200 dark:border-white/10 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-400 text-slate-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5",
-              title: "Discard Draft",
+              onClick: clearFeed,
+              className: "text-xs text-slate-400 hover:text-rose-500 flex items-center gap-1 transition-colors",
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { className: "w-3.5 h-3.5" }),
-                "Discard"
-              ]
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "button",
-            {
-              onClick: () => onSend(text),
-              className: "flex-1 bg-brand-600 hover:bg-brand-500 text-white py-1.5 rounded-lg text-xs font-bold shadow-lg shadow-brand-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-2",
-              children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(PenLine, { className: "w-3.5 h-3.5" }),
-                "Approve & Send"
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { className: "w-3 h-3" }),
+                " Clear History"
               ]
             }
           )
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(LiveFeed, { events: processedEvents })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-8", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SmartQueueWidget, { items: queueItems }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between mb-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "font-semibold text-slate-900 dark:text-white flex items-center gap-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(PenLine, { className: "w-4 h-4 text-indigo-500" }),
+              " Needs Approval"
+            ] }),
+            drafts.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-2 py-0.5 rounded-full", children: drafts.length })
+          ] }),
+          drafts.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "glass p-6 rounded-xl text-center border-dashed border-2 border-slate-200 dark:border-white/5", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-slate-400 text-sm", children: "No drafts pending approval." }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "space-y-4 max-h-[400px] overflow-y-auto pr-1", children: drafts.map((draft) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "glass p-5 rounded-xl border-l-4 border-l-indigo-500 relative", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between mb-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1", children: [
+                draft.sentiment === "high" && /* @__PURE__ */ jsxRuntimeExports.jsx(OctagonAlert, { className: "w-3 h-3 text-rose-500" }),
+                draft.contactName
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  onClick: () => handleDiscardDraft(draft.id),
+                  className: "text-slate-400 hover:text-rose-500 transition-colors",
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(X, { className: "w-4 h-4" })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500 dark:text-slate-400 mb-1", children: "User asked:" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-sm font-medium text-slate-900 dark:text-white line-clamp-2", children: [
+                '"',
+                draft.query,
+                '"'
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "textarea",
+                {
+                  className: "w-full bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 text-xs border border-slate-200 dark:border-white/10 focus:ring-2 ring-indigo-500/20 outline-none transition-all resize-none",
+                  rows: 3,
+                  defaultValue: draft.proposedReply,
+                  id: `text-${draft.id}`
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  onClick: () => {
+                    const el = document.getElementById(`text-${draft.id}`);
+                    handleApproveDraft(draft.id, el.value);
+                  },
+                  className: "w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-95",
+                  children: "Approve & Send"
+                }
+              )
+            ] })
+          ] }, draft.id)) })
         ] })
-      ] }) })
+      ] })
     ] })
   ] });
 }
@@ -8124,26 +8442,36 @@ function SettingsPage() {
     tone: "professional",
     description: ""
   });
+  const [botName, setBotName] = reactExports.useState(settings?.botName || "JStar");
+  const [currency, setCurrency] = reactExports.useState(settings?.currency || "₦");
+  const [saveStatus, setSaveStatus] = reactExports.useState("idle");
   const handleToggle = async (key, value) => {
     if (!settings) return;
     updateSettings({ [key]: value });
     await window.electron.saveSettings({ [key]: value });
   };
   const handleSave = async () => {
+    setSaveStatus("idle");
+    const newSettings = {
+      systemPrompt,
+      licenseKey,
+      businessProfile,
+      botName,
+      currency
+    };
     try {
-      const res = await window.electron.saveSettings({
-        systemPrompt,
-        licenseKey,
-        businessProfile
-      });
+      const res = await window.electron.saveSettings(newSettings);
       if (res.success) {
+        updateSettings(newSettings);
+        setSaveStatus("success");
+        setTimeout(() => setSaveStatus("idle"), 3e3);
       } else {
         console.error("Failed to save settings:", res.error);
-        alert("Failed to save settings. Please try again.");
+        setSaveStatus("error");
       }
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("An error occurred while saving settings.");
+      setSaveStatus("error");
     }
   };
   const handleValidateLicense = async () => {
@@ -8151,10 +8479,18 @@ function SettingsPage() {
     try {
       const res = await window.electron.validateLicense(licenseKey);
       if (res.success && res.data) {
-        alert("License validated successfully!");
+        const settingsRes = await window.electron.getSettings();
+        if (settingsRes.success && settingsRes.data) {
+          updateSettings(settingsRes.data);
+        }
+        setSaveStatus("success");
+        setTimeout(() => setSaveStatus("idle"), 3e3);
       } else {
         alert("Invalid license key");
       }
+    } catch (error) {
+      console.error("License validation failed:", error);
+      alert("Failed to validate license");
     } finally {
       setIsValidating(false);
     }
@@ -8243,6 +8579,36 @@ function SettingsPage() {
         )
       ] })
     ] }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Bot Identity", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "glass p-6 rounded-2xl space-y-6", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "Bot Name" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            value: botName,
+            onChange: (e) => setBotName(e.target.value),
+            placeholder: "JStar",
+            className: "w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "The name the AI will use to introduce itself." })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "Currency Symbol" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            value: currency,
+            onChange: (e) => setCurrency(e.target.value),
+            placeholder: "₦",
+            className: "w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "Used for product prices (e.g. $, ₦, £)." })
+      ] })
+    ] }) }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Automation", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "glass p-6 rounded-2xl space-y-6", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         ToggleRow,
@@ -8251,6 +8617,15 @@ function SettingsPage() {
           description: "Approvals required before sending. Safer for new users.",
           checked: settings.draftMode,
           onChange: (v) => handleToggle("draftMode", v)
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ToggleRow,
+        {
+          title: "Safe Mode (Human Mimic)",
+          description: "Adds random delays and typing indicators to avoid WhatsApp bans.",
+          checked: settings.safeModeEnabled,
+          onChange: (v) => handleToggle("safeModeEnabled", v)
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `flex items-center justify-between ${settings.draftMode ? "opacity-50 pointer-events-none" : ""}`, children: [
@@ -8292,7 +8667,10 @@ function SettingsPage() {
     ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "System", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "glass p-6 rounded-2xl space-y-6", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "License Key" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "License Key" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${settings.licenseStatus === "active" ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border border-amber-500/20"}`, children: settings.licenseStatus })
+        ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "input",
@@ -8328,14 +8706,46 @@ function SettingsPage() {
         /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "This instruction guides the AI's personality and behavior." })
       ] })
     ] }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-end pt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "button",
-      {
-        onClick: handleSave,
-        className: "bg-brand-600 hover:bg-brand-500 text-white px-8 py-3 rounded-xl font-medium shadow-lg shadow-brand-500/20 active:scale-95 transition-all",
-        children: "Save Changes"
-      }
-    ) })
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-end gap-4 pt-4", children: [
+      saveStatus === "success" && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-sm font-medium text-emerald-600 dark:text-emerald-400 animate-fade-in flex items-center gap-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 13l4 4L19 7" }) }),
+        "Settings Saved!"
+      ] }),
+      saveStatus === "error" && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-medium text-rose-600 dark:text-rose-400 animate-fade-in", children: "Failed to save" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: handleSave,
+          disabled: saveStatus === "success",
+          className: `px-8 py-3 rounded-xl font-medium shadow-lg transition-all ${saveStatus === "success" ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20 active:scale-95"}`,
+          children: saveStatus === "success" ? "Saved" : "Save Changes"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Developer Zone", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "glass p-6 rounded-2xl border border-rose-500/20 bg-rose-500/5 space-y-4", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "font-medium text-rose-900 dark:text-rose-200", children: "Reset & Seed Database" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-rose-700/70 dark:text-rose-300/70", children: `Wipes all products and loads "James's Bistro & Motors" sample data.` })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: async () => {
+            if (confirm("WARNING: This will delete all your current products and settings. Are you sure?")) {
+              const res = await window.electron.seedDB();
+              if (res.success) {
+                alert("Database seeded successfully! Please restart the app or reload the page.");
+                window.location.reload();
+              } else {
+                alert("Failed to seed database: " + res.error);
+              }
+            }
+          },
+          className: "px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-rose-500/20",
+          children: "Seed Data"
+        }
+      )
+    ] }) }) })
   ] });
 }
 function Section({ title, children }) {
@@ -8796,7 +9206,7 @@ function App() {
   const renderPage = () => {
     switch (activePage) {
       case "home":
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(HomePage, {});
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Home, {});
       case "connect":
         return /* @__PURE__ */ jsxRuntimeExports.jsx(ConnectPage, {});
       case "brain":

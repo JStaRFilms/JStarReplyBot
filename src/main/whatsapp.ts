@@ -1,4 +1,4 @@
-import { Client, LocalAuth, Message } from 'whatsapp-web.js'
+import { Client, LocalAuth, Message, Contact } from 'whatsapp-web.js'
 import { BrowserWindow } from 'electron'
 import { app } from 'electron'
 import { join } from 'path'
@@ -54,11 +54,33 @@ export class WhatsAppClient {
             this.broadcastToRenderer(IPC_CHANNELS.ON_QR, this.qrCodeDataUrl)
         })
 
-        this.client.on('ready', () => {
+        this.client.on('ready', async () => {
             log('INFO', 'WhatsApp client is ready!')
             this.status = 'connected'
             this.qrCodeDataUrl = null
             this.broadcastToRenderer(IPC_CHANNELS.ON_READY, true)
+
+            // FIX: Inject polyfill for missing WhatsApp Web internal function (Store.ContactMethods)
+            try {
+                // @ts-ignore - Accessing internal puppeteer page
+                const page = this.client.pupPage
+                if (page) {
+                    await page.evaluate(() => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const windowAny = window as any
+                        if (!windowAny.Store) windowAny.Store = {}
+                        if (!windowAny.Store.ContactMethods) windowAny.Store.ContactMethods = {}
+
+                        if (!windowAny.Store.ContactMethods.getIsMyContact) {
+                            windowAny.Store.ContactMethods.getIsMyContact = () => false // Safe fallback
+                            console.log('[JStar] Injected getIsMyContact polyfill')
+                        }
+                    })
+                    log('INFO', 'Applied contact lookup patch successfully')
+                }
+            } catch (patchError) {
+                log('WARN', `Failed to apply contact lookup patch: ${patchError}`)
+            }
         })
 
         this.client.on('authenticated', () => {
@@ -80,6 +102,14 @@ export class WhatsAppClient {
             if (!this.isRunning) return
             await this.handleIncomingMessage(msg)
         })
+
+        this.client.on('message_revoke_everyone', async (msg) => {
+            if (!this.isRunning) return
+            // Remove the revoked message from the queue if it's currently buffered
+            if (msg) {
+                this.queueService.removeMessage(msg.from, msg.id._serialized)
+            }
+        })
     }
 
     private async handleIncomingMessage(msg: Message): Promise<void> {
@@ -100,13 +130,8 @@ export class WhatsAppClient {
                 log('WARN', `Contact lookup failed: ${e}`)
             }
 
-            // Unsaved Contacts Only Filter
-            if (settings.unsavedContactsOnly && contact?.isMyContact) {
-                return
-            }
-
-            // Apply remaining filters
-            if (!this.shouldReply(msg, settings)) {
+            // Apply filters (Groups, Statuses, Blacklist, Whitelist, Unsaved Only)
+            if (!this.shouldReply(msg, settings, contact)) {
                 return
             }
 
@@ -254,7 +279,7 @@ export class WhatsAppClient {
         }
     }
 
-    private shouldReply(msg: Message, settings: Settings): boolean {
+    private shouldReply(msg: Message, settings: Settings, contact?: Contact): boolean {
         // Ignore own messages
         if (msg.fromMe) return false
 
@@ -278,7 +303,15 @@ export class WhatsAppClient {
             return false
         }
 
-        // TODO: Implement unsavedContactsOnly check (requires contact lookup)
+        // Unsaved Contacts Only check
+        if (settings.unsavedContactsOnly) {
+            // A contact is "Saved" if isMyContact is true OR they have a name in our phonebook
+            const isSaved = contact?.isMyContact || (contact?.name && contact?.name !== contact?.number)
+            if (isSaved) {
+                log('DEBUG', `Skipping message from saved contact: ${contact?.name || msg.from}`)
+                return false
+            }
+        }
 
         return true
     }

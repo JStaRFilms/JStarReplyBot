@@ -27,6 +27,8 @@ build/
 coverage/
 .npm
 *.log
+.wwebjs_cache/
+.wwebjs_auth/
 
 # --- IDEs ---
 .vscode/

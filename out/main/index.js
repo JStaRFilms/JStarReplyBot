@@ -89,10 +89,10 @@ const electronApp = {
   }
 };
 const optimizer = {
-  watchWindowShortcuts(window, shortcutOptions) {
-    if (!window)
+  watchWindowShortcuts(window2, shortcutOptions) {
+    if (!window2)
       return;
-    const { webContents } = window;
+    const { webContents } = window2;
     const { escToCloseWindow = false, zoom = false } = shortcutOptions || {};
     webContents.on("before-input-event", (event, input) => {
       if (input.type === "keyDown") {
@@ -111,7 +111,7 @@ const optimizer = {
         }
         if (escToCloseWindow) {
           if (input.code === "Escape" && input.key !== "Process") {
-            window.close();
+            window2.close();
             event.preventDefault();
           }
         }
@@ -1317,6 +1317,24 @@ class SmartQueueService {
     }
     this.emitQueueUpdate();
   }
+  /**
+   * Remove a specific message from the queue (e.g. if it was revoked/deleted)
+   */
+  removeMessage(contactId, messageId) {
+    const item = this.buffers.get(contactId);
+    if (!item) return;
+    const originalCount = item.messages.length;
+    item.messages = item.messages.filter((m) => m.id._serialized !== messageId);
+    if (item.messages.length !== originalCount) {
+      log("INFO", `[SmartQueue] Removed revoked message ${messageId} from ${contactId} buffer`);
+      if (item.messages.length === 0) {
+        clearTimeout(item.timer);
+        this.buffers.delete(contactId);
+        log("DEBUG", `[SmartQueue] Empty buffer for ${contactId} removed`);
+      }
+      this.emitQueueUpdate();
+    }
+  }
   async processBuffer(contactId, callback) {
     const item = this.buffers.get(contactId);
     if (!item) return;
@@ -1410,11 +1428,28 @@ class WhatsAppClient {
       this.qrCodeDataUrl = await qrcode__namespace.toDataURL(qr);
       this.broadcastToRenderer(IPC_CHANNELS.ON_QR, this.qrCodeDataUrl);
     });
-    this.client.on("ready", () => {
+    this.client.on("ready", async () => {
       log("INFO", "WhatsApp client is ready!");
       this.status = "connected";
       this.qrCodeDataUrl = null;
       this.broadcastToRenderer(IPC_CHANNELS.ON_READY, true);
+      try {
+        const page = this.client.pupPage;
+        if (page) {
+          await page.evaluate(() => {
+            const windowAny = window;
+            if (!windowAny.Store) windowAny.Store = {};
+            if (!windowAny.Store.ContactMethods) windowAny.Store.ContactMethods = {};
+            if (!windowAny.Store.ContactMethods.getIsMyContact) {
+              windowAny.Store.ContactMethods.getIsMyContact = () => false;
+              console.log("[JStar] Injected getIsMyContact polyfill");
+            }
+          });
+          log("INFO", "Applied contact lookup patch successfully");
+        }
+      } catch (patchError) {
+        log("WARN", `Failed to apply contact lookup patch: ${patchError}`);
+      }
     });
     this.client.on("authenticated", () => {
       log("INFO", "WhatsApp authenticated successfully");
@@ -1432,6 +1467,12 @@ class WhatsAppClient {
       if (!this.isRunning) return;
       await this.handleIncomingMessage(msg);
     });
+    this.client.on("message_revoke_everyone", async (msg) => {
+      if (!this.isRunning) return;
+      if (msg) {
+        this.queueService.removeMessage(msg.from, msg.id._serialized);
+      }
+    });
   }
   async handleIncomingMessage(msg) {
     try {
@@ -1445,10 +1486,7 @@ class WhatsAppClient {
       } catch (e) {
         log("WARN", `Contact lookup failed: ${e}`);
       }
-      if (settings.unsavedContactsOnly && contact?.isMyContact) {
-        return;
-      }
-      if (!this.shouldReply(msg, settings)) {
+      if (!this.shouldReply(msg, settings, contact)) {
         return;
       }
       let contactName = "Unknown";
@@ -1560,7 +1598,7 @@ class WhatsAppClient {
       return { status: "failed", error: String(error) };
     }
   }
-  shouldReply(msg, settings) {
+  shouldReply(msg, settings, contact) {
     if (msg.fromMe) return false;
     if (settings.ignoreGroups && msg.from.includes("@g.us")) {
       return false;
@@ -1573,6 +1611,13 @@ class WhatsAppClient {
     }
     if (settings.whitelist.length > 0 && !settings.whitelist.includes(msg.from)) {
       return false;
+    }
+    if (settings.unsavedContactsOnly) {
+      const isSaved = contact?.isMyContact || contact?.name && contact?.name !== contact?.number;
+      if (isSaved) {
+        log("DEBUG", `Skipping message from saved contact: ${contact?.name || msg.from}`);
+        return false;
+      }
     }
     return true;
   }
@@ -1818,8 +1863,8 @@ function createTray() {
 }
 electron.app.whenReady().then(async () => {
   electronApp.setAppUserModelId("com.jstar.replybot");
-  electron.app.on("browser-window-created", (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+  electron.app.on("browser-window-created", (_, window2) => {
+    optimizer.watchWindowShortcuts(window2);
   });
   await initDatabase();
   log("INFO", "Database initialized");

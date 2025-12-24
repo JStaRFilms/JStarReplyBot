@@ -13,9 +13,9 @@ This document serves as the project backlog. Each item below represents a task t
 - Configure `eslint` and `prettier`.
 - Set up directory structure (`src/main`, `src/renderer`, `src/shared`).
 **Acceptance Criteria:**
-- [ ] `pnpm dev` opens an Electron window with React loaded.
-- [ ] Hot Reloading works for Renderer.
-- [ ] Main process re-compiles on change.
+- [x] `pnpm dev` opens an Electron window with React loaded.
+- [x] Hot Reloading works for Renderer.
+- [x] Main process re-compiles on change.
 
 ---
 
@@ -30,10 +30,11 @@ This document serves as the project backlog. Each item below represents a task t
 - Renderer displays QR code using `react-qr-code`.
 - Listen for `ready` event to confirm connection.
 **Acceptance Criteria:**
-- [ ] App displays QR Code on startup if not authenticated.
-- [ ] Scanning connects successfully.
-- [ ] "Client is ready!" log appears.
-- [ ] Session is restored on app restart.
+- [x] App displays QR Code on startup if not authenticated.
+- [x] Scanning connects successfully.
+- [x] "Client is ready!" log appears.
+- [x] Session is restored on app restart.
+- [x] **Hotfix (2025-12-24):** Contact lookup patch applied.
 
 ---
 
@@ -47,10 +48,10 @@ This document serves as the project backlog. Each item below represents a task t
 - **Storage:** Store vectors in a local Vector Store (e.g., `Voyager` or `LanceDB` for Electron).
 - **Retrieval:** On message, convert query to vector -> legacy search -> dynamic context injection.
 **Acceptance Criteria:**
-- [ ] User uploads a PDF.
-- [ ] App indexes it (visible in a "Knowledge" list).
-- [ ] Asking a specific question from the PDF yields a correct answer.
-- [ ] Uses Google Gemini Embeddings (Cost-effective).
+- [x] User uploads a PDF.
+- [x] App indexes it (visible in a "Knowledge" list).
+- [x] Asking a specific question from the PDF yields a correct answer.
+- [x] Uses Google Gemini Embeddings (Cost-effective).
 
 ---
 
@@ -63,8 +64,8 @@ This document serves as the project backlog. Each item below represents a task t
 - Prompt: "Analyze this conv. Did the user express interest in a product? Which one?"
 - Save result to `Leads` database table.
 **Acceptance Criteria:**
-- [ ] Dashboard shows "Top Products Enquired".
-- [ ] Conversation logs show "Interested in: [Product Name]".
+- [x] Dashboard shows "Top Products Enquired".
+- [x] Conversation logs show "Interested in: [Product Name]".
 
 ---
 
@@ -80,9 +81,9 @@ This document serves as the project backlog. Each item below represents a task t
 - Call Vercel AI SDK (`generateText`).
 - Send response via `whatsapp-web.js` (`msg.reply()`).
 **Acceptance Criteria:**
-- [ ] Bot replies to a text message automatically.
-- [ ] Bot uses the context provided in Settings.
-- [ ] Bot does not reply to itself.
+- [x] Bot replies to a text message automatically.
+- [x] Bot uses the context provided in Settings.
+- [x] Bot does not reply to itself.
 
 ---
 
@@ -96,9 +97,9 @@ This document serves as the project backlog. Each item below represents a task t
 - Validate key against a mock API (or LemonSqueezy/Gumroad real API).
 - If valid, unlock app and enable `whatsapp-web.js` client.
 **Acceptance Criteria:**
-- [ ] App prompts for key on first run.
-- [ ] "Start Bot" is disabled without valid key.
-- [ ] Mock validation works (e.g., key `TEST-123` works).
+- [x] App prompts for key on first run.
+- [x] "Start Bot" is disabled without valid key.
+- [x] Mock validation works (e.g., key `TEST-123` works).
 
 ---
 
@@ -112,8 +113,8 @@ This document serves as the project backlog. Each item below represents a task t
 - Send message after delay.
 - Clear typing state.
 **Acceptance Criteria:**
-- [ ] Bot waits 5-12 seconds before replying.
-- [ ] "Typing..." status appears on the user's phone.
+- [x] Bot waits 5-12 seconds before replying.
+- [x] "Typing..." status appears on the user's phone.
 
 ---
 
@@ -126,9 +127,9 @@ This document serves as the project backlog. Each item below represents a task t
 - **Unsaved Logic:** Toggle "Reply only to Unsaved Contacts". Check `contact.isMyContact`.
 - **Lists:** Store `blacklist` and `whitelist` arrays in LowDB. Check sender ID against these lists.
 **Acceptance Criteria:**
-- [ ] Bot ignores group messages by default.
-- [ ] "Unsaved Only" mode works (ignores saved friends).
-- [ ] Blacklisted numbers never get a reply.
+- [x] Bot ignores group messages by default.
+- [x] "Unsaved Only" mode works (ignores saved friends).
+- [x] Blacklisted numbers never get a reply.
 
 ---
 
@@ -144,9 +145,9 @@ This document serves as the project backlog. Each item below represents a task t
   - Instead, use `whatsapp-web.js` to merely TYPE the text into the input bar (if possible) OR save it as a "Pending Reply" in our own UI.
   - *Refinement:* Since we can't easily type into the real phone's input bar remotely, we will show a "Proposed Reply" notification in OUR App's UI. User clicks "Approve/Send".
 **Acceptance Criteria:**
-- [ ] "Draft Mode" toggle exists.
-- [ ] If ON, bot does not send automatically.
-- [ ] User can see the proposed reply in the App Dashboard and click "Send".
+- [x] "Draft Mode" toggle exists.
+- [x] If ON, bot does not send automatically.
+- [x] User can see the proposed reply in the App Dashboard and click "Send".
 
 ---
 
@@ -161,9 +162,9 @@ This document serves as the project backlog. Each item below represents a task t
   - Logic: If text > 200 chars or contains `\n\n`, split into max 3 chunks.
   - Send loop: Send Chunk 1 -> Wait 1.5s -> Send Chunk 2 -> Wait 1.2s -> Send Chunk 3.
 **Acceptance Criteria:**
-- [ ] Bot explicitly quotes the message it is replying to.
-- [ ] Long AI responses are broken into 2-3 separate WhatsApp bubbles.
-- [ ] Delays between bubbles feel natural.
+- [x] Bot explicitly quotes the message it is replying to.
+- [x] Long AI responses are broken into 2-3 separate WhatsApp bubbles.
+- [x] Delays between bubbles feel natural.
 
 ---
 

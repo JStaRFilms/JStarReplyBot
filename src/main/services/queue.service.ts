@@ -66,6 +66,30 @@ export class SmartQueueService {
         this.emitQueueUpdate()
     }
 
+    /**
+     * Remove a specific message from the queue (e.g. if it was revoked/deleted)
+     */
+    public removeMessage(contactId: string, messageId: string): void {
+        const item = this.buffers.get(contactId)
+        if (!item) return
+
+        const originalCount = item.messages.length
+        item.messages = item.messages.filter(m => m.id._serialized !== messageId)
+
+        if (item.messages.length !== originalCount) {
+            log('INFO', `[SmartQueue] Removed revoked message ${messageId} from ${contactId} buffer`)
+
+            // If the buffer is now empty, kill the timer and delete the item
+            if (item.messages.length === 0) {
+                clearTimeout(item.timer)
+                this.buffers.delete(contactId)
+                log('DEBUG', `[SmartQueue] Empty buffer for ${contactId} removed`)
+            }
+
+            this.emitQueueUpdate()
+        }
+    }
+
     private async processBuffer(
         contactId: string,
         callback: (messages: Message[]) => Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; error?: string }>
