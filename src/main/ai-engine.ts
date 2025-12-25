@@ -32,7 +32,8 @@ interface AIReplyResult {
 export async function generateAIReply(
     userMessage: string,
     systemPrompt: string,
-    history: { role: 'user' | 'model'; content: string }[] = []
+    history: { role: 'user' | 'model'; content: string }[] = [],
+    multimodalContext?: string
 ): Promise<AIReplyResult | null> {
     try {
         // Retrieve relevant context from knowledge base (RAG)
@@ -65,11 +66,16 @@ ${profile.description}`
             ? `\n\n--- CONVERSATION HISTORY ---\n${history.map(m => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`).join('\n')}\n--- END HISTORY ---\n`
             : ''
 
+        const multimodalBlock = multimodalContext
+            ? `\n\n--- MEDIA CONTEXT ---\nThe user sent a media file with the following analysis:\n${multimodalContext}\n--- END MEDIA CONTEXT ---\n`
+            : ''
+
         const fullSystemPrompt = `${systemPrompt}
 ${profileBlock}
 ${catalogBlock}
 ${contextBlock}
 ${historyBlock}
+${multimodalBlock}
 
 IMPORTANT INSTRUCTIONS:
 1. Your name is ${botName}. You are NOT the business owner, you work for them.
@@ -82,6 +88,7 @@ IMPORTANT INSTRUCTIONS:
 8. Never admit you are an AI unless directly asked
 9. Use natural, conversational language
 10. Match the specified Tone (${profile.tone}) in your writing style.
+11. If MEDIA CONTEXT is provided, TREAT IT AS DIRECT USER INPUT. Do NOT say "I see you sent an image" or "According to the analysis". React naturally. (e.g., If the image contains a "Merry Christmas" flyer, reply "Merry Christmas!"; if it shows a product, answer questions about it).
 
 Analyze the user's message for:
 - Sentiment level (low/medium/high frustration)
@@ -95,35 +102,58 @@ Respond with a helpful reply.`
         if (licenseStatus === 'active' && licenseKey) {
             const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
             log('INFO', `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`)
-            const response = await fetch(GATEKEEPER_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${licenseKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile', // Gatekeeper can override this
-                    messages: [
-                        { role: 'system', content: fullSystemPrompt },
-                        { role: 'user', content: userMessage }
-                    ]
+
+            try {
+                const response = await fetch(GATEKEEPER_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${licenseKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'moonshotai/kimi-k2-instruct-0905', // Swapped to Kimi as Main
+                        messages: [
+                            { role: 'system', content: fullSystemPrompt },
+                            { role: 'user', content: userMessage }
+                        ]
+                    })
                 })
-            })
 
-            if (!response.ok) {
-                const errorText = await response.text()
-                log('ERROR', `Gatekeeper request failed: ${response.status} ${response.statusText} - ${errorText}`)
-                throw new Error(`Gatekeeper error: ${response.status} - ${errorText}`)
+                if (!response.ok) {
+                    const errorText = await response.text()
+                    // If server error (5xx), throw to trigger fallback
+                    if (response.status >= 500) {
+                        throw new Error(`Gatekeeper Server Error: ${response.status}`)
+                    }
+                    // If auth error (401/403), probably invalid key, stop here
+                    if (response.status === 401 || response.status === 403) {
+                        throw new Error(`Gatekeeper Auth Error: ${response.status} - ${errorText}`)
+                    }
+                    log('WARN', `Gatekeeper returned ${response.status}, falling back to local.`)
+                    throw new Error(`Gatekeeper status ${response.status}`)
+                }
+
+                const data = await response.json()
+                textResponse = data.text || data.choices?.[0]?.message?.content || ''
+
+            } catch (gkError) {
+                log('WARN', `Gatekeeper failed (${gkError}), falling back to unique local generation`)
+                // Fallback Logic (duplicated from else block)
+                const result = await generateText({
+                    model: getGroq()('llama-3.3-70b-versatile') as any, // Swapped to Llama as Fallback
+                    system: fullSystemPrompt,
+                    prompt: userMessage,
+                    maxTokens: 300,
+                    temperature: 0.7
+                })
+                textResponse = result.text
             }
-
-            const data = await response.json()
-            textResponse = data.text || data.choices?.[0]?.message?.content || ''
 
         } else {
             // Fallback to Local Env Key (Dev Mode)
             log('INFO', 'Using local Groq API (Dev/Trial Mode)')
             const result = await generateText({
-                model: getGroq()('moonshotai/kimi-k2-instruct-0905'), // Use defaults
+                model: getGroq()('llama-3.3-70b-versatile') as any, // Swapped to Llama as Dev
                 system: fullSystemPrompt,
                 prompt: userMessage,
                 maxTokens: 300,

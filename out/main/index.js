@@ -38,6 +38,7 @@ const whatsappWeb_js = require("whatsapp-web.js");
 const qrcode = require("qrcode");
 const groq$1 = require("@ai-sdk/groq");
 const ai = require("ai");
+const google$1 = require("@ai-sdk/google");
 function _interopNamespaceDefault(e) {
   const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
   if (e) {
@@ -321,7 +322,18 @@ const SettingsSchema = zod.z.object({
   botName: zod.z.string().default("JStar"),
   currency: zod.z.string().default("₦"),
   licenseStatus: zod.z.enum(["active", "expired", "invalid", "trial"]).default("trial"),
-  licensePlan: zod.z.string().default("free")
+  licensePlan: zod.z.string().default("free"),
+  // New Features
+  voiceEnabled: zod.z.boolean().default(false),
+  visionEnabled: zod.z.boolean().default(false),
+  personas: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    name: zod.z.string(),
+    description: zod.z.string(),
+    systemPrompt: zod.z.string(),
+    tone: zod.z.enum(["professional", "friendly", "enthusiastic", "formal", "custom"])
+  })).default([]),
+  activePersonaId: zod.z.string().optional()
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -457,7 +469,8 @@ const defaultData = {
   },
   documents: [],
   catalog: [],
-  drafts: []
+  drafts: [],
+  messageContexts: {}
 };
 let db$1 = null;
 async function initDatabase() {
@@ -595,6 +608,18 @@ async function seedDatabase() {
   };
   await db2.write();
 }
+async function saveMessageContext(messageId, description) {
+  const db2 = getDb();
+  await db2.read();
+  if (!db2.data.messageContexts) db2.data.messageContexts = {};
+  db2.data.messageContexts[messageId] = description;
+  await db2.write();
+}
+async function getMessageContext(messageId) {
+  const db2 = getDb();
+  await db2.read();
+  return db2.data.messageContexts?.[messageId];
+}
 const db$2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   addCatalogItem,
@@ -605,12 +630,14 @@ const db$2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty
   getDb,
   getDocuments,
   getDrafts,
+  getMessageContext,
   getSettings,
   getStats,
   incrementStats,
   initDatabase,
   removeDocument,
   removeDraft,
+  saveMessageContext,
   saveSettings,
   seedDatabase,
   updateCatalogItem,
@@ -1148,7 +1175,7 @@ function getGroq() {
   }
   return groq;
 }
-async function generateAIReply(userMessage, systemPrompt, history = []) {
+async function generateAIReply(userMessage, systemPrompt, history = [], multimodalContext) {
   try {
     const context = await retrieveContext(userMessage);
     const settings = await getSettings();
@@ -1179,11 +1206,19 @@ ${profile.description}`;
 ${history.map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`).join("\n")}
 --- END HISTORY ---
 ` : "";
+    const multimodalBlock = multimodalContext ? `
+
+--- MEDIA CONTEXT ---
+The user sent a media file with the following analysis:
+${multimodalContext}
+--- END MEDIA CONTEXT ---
+` : "";
     const fullSystemPrompt = `${systemPrompt}
 ${profileBlock}
 ${catalogBlock}
 ${contextBlock}
 ${historyBlock}
+${multimodalBlock}
 
 IMPORTANT INSTRUCTIONS:
 1. Your name is ${botName}. You are NOT the business owner, you work for them.
@@ -1196,6 +1231,7 @@ IMPORTANT INSTRUCTIONS:
 8. Never admit you are an AI unless directly asked
 9. Use natural, conversational language
 10. Match the specified Tone (${profile.tone}) in your writing style.
+11. If MEDIA CONTEXT is provided, TREAT IT AS DIRECT USER INPUT. Do NOT say "I see you sent an image" or "According to the analysis". React naturally. (e.g., If the image contains a "Merry Christmas" flyer, reply "Merry Christmas!"; if it shows a product, answer questions about it).
 
 Analyze the user's message for:
 - Sentiment level (low/medium/high frustration)
@@ -1206,33 +1242,52 @@ Respond with a helpful reply.`;
     if (licenseStatus === "active" && licenseKey) {
       const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api/chat";
       log("INFO", `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`);
-      const response = await fetch(GATEKEEPER_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${licenseKey}`
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          // Gatekeeper can override this
-          messages: [
-            { role: "system", content: fullSystemPrompt },
-            { role: "user", content: userMessage }
-          ]
-        })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        log("ERROR", `Gatekeeper request failed: ${response.status} ${response.statusText} - ${errorText}`);
-        throw new Error(`Gatekeeper error: ${response.status} - ${errorText}`);
+      try {
+        const response = await fetch(GATEKEEPER_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${licenseKey}`
+          },
+          body: JSON.stringify({
+            model: "moonshotai/kimi-k2-instruct-0905",
+            // Swapped to Kimi as Main
+            messages: [
+              { role: "system", content: fullSystemPrompt },
+              { role: "user", content: userMessage }
+            ]
+          })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          if (response.status >= 500) {
+            throw new Error(`Gatekeeper Server Error: ${response.status}`);
+          }
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(`Gatekeeper Auth Error: ${response.status} - ${errorText}`);
+          }
+          log("WARN", `Gatekeeper returned ${response.status}, falling back to local.`);
+          throw new Error(`Gatekeeper status ${response.status}`);
+        }
+        const data = await response.json();
+        textResponse = data.text || data.choices?.[0]?.message?.content || "";
+      } catch (gkError) {
+        log("WARN", `Gatekeeper failed (${gkError}), falling back to unique local generation`);
+        const result = await ai.generateText({
+          model: getGroq()("llama-3.3-70b-versatile"),
+          // Swapped to Llama as Fallback
+          system: fullSystemPrompt,
+          prompt: userMessage,
+          maxTokens: 300,
+          temperature: 0.7
+        });
+        textResponse = result.text;
       }
-      const data = await response.json();
-      textResponse = data.text || data.choices?.[0]?.message?.content || "";
     } else {
       log("INFO", "Using local Groq API (Dev/Trial Mode)");
       const result = await ai.generateText({
-        model: getGroq()("moonshotai/kimi-k2-instruct-0905"),
-        // Use defaults
+        model: getGroq()("llama-3.3-70b-versatile"),
+        // Swapped to Llama as Dev
         system: fullSystemPrompt,
         prompt: userMessage,
         maxTokens: 300,
@@ -1277,6 +1332,65 @@ function detectProductIntent(text) {
     }
   }
   return void 0;
+}
+let google = null;
+function getGoogle() {
+  if (!google) {
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
+    if (!apiKey) {
+      log("WARN", "No GEMINI_API_KEY found. Multimodal features will fail.");
+    }
+    google = google$1.createGoogleGenerativeAI({ apiKey });
+  }
+  return google;
+}
+async function analyzeMedia(mode, base64Data, mimeType) {
+  try {
+    const googleProvider = getGoogle();
+    if (!googleProvider) {
+      log("WARN", "Google AI provider not initialized");
+      return null;
+    }
+    const model = googleProvider("gemini-2.5-flash-lite");
+    const cleanMime = (mimeType.split(";")[0] || mimeType).trim();
+    let prompt = "";
+    if (mode === "audio") {
+      prompt = "Transcribe this audio message exactly as spoken. If it contains a question or request, summarize the intent at the end in brackets [Intent: ...].";
+    } else if (mode === "video") {
+      prompt = "Describe this video. If there is speech, transcribe it. If there is visual action, describe it naturally.";
+    } else {
+      prompt = 'Describe the content of this image naturally. If there is text, transcribe it. If there are products, list them. Do not describe the image as an "file" or "attachment", just describe what is IN it.';
+    }
+    const content = [{ type: "text", text: prompt }];
+    if (mode === "image") {
+      content.push({
+        type: "image",
+        image: base64Data
+      });
+    } else {
+      content.push({
+        type: "file",
+        data: base64Data,
+        mimeType: cleanMime
+      });
+    }
+    log("DEBUG", `[Multimodal] Sending payload: ${cleanMime} (${base64Data.length} chars)`);
+    const result = await ai.generateText({
+      model,
+      messages: [
+        {
+          role: "user",
+          content
+        }
+      ]
+    });
+    const output = result.text;
+    log("AI", `[Multimodal] ${mode} analysis: ${output.substring(0, 50)}...`);
+    return output;
+  } catch (error) {
+    log("ERROR", `Multimodal analysis failed (${mode}): ${error}`);
+    return null;
+  }
 }
 class SmartQueueService {
   buffers = /* @__PURE__ */ new Map();
@@ -1479,7 +1593,11 @@ class WhatsAppClient {
       const settings = await getSettings();
       if (msg.fromMe) return;
       if (settings.ignoreGroups && msg.from.includes("@g.us")) return;
-      if (settings.ignoreStatuses && msg.from.includes("@broadcast")) return;
+      if (settings.ignoreGroups && msg.from.includes("@g.us")) return;
+      if (settings.ignoreStatuses && msg.from.includes("@broadcast") && !msg.from.includes("@newsletter")) return;
+      if (msg.from.includes("@newsletter")) return;
+      const ignoredTypes = ["e2e_notification", "call_log", "protocol", "gp2", "notification_template", "ciphertext", "revoked"];
+      if (ignoredTypes.includes(msg.type)) return;
       let contact;
       try {
         contact = await msg.getContact();
@@ -1498,6 +1616,47 @@ class WhatsAppClient {
         const rawName = msg._data?.notifyName || msg._data?.pushname;
         contactName = rawName || contactNumber;
       }
+      let multimodalContext = "";
+      if (msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media) {
+            const mime = media.mimetype;
+            if (settings.voiceEnabled && (mime.includes("audio") || mime.includes("ogg"))) {
+              log("INFO", "Processing Voice Note...");
+              const analysis = await analyzeMedia("audio", media.data, mime);
+              if (analysis) {
+                multimodalContext = `[VOICE NOTE TRANSCRIPTION]: "${analysis}"`;
+                msg.body = `(Sent a Voice Note: "${analysis}")`;
+                await saveMessageContext(msg.id._serialized, analysis);
+              }
+            }
+            if (settings.visionEnabled && (mime.includes("image") || mime.includes("sticker"))) {
+              log("INFO", "Processing Image/Sticker...");
+              const analysis = await analyzeMedia("image", media.data, mime);
+              if (analysis) {
+                multimodalContext = `[IMAGE ANALYSIS]: "${analysis}"`;
+                msg.body = msg.body ? `${msg.body} 
+(Sent an Image: ${analysis})` : `(Sent an Image: ${analysis})`;
+                await saveMessageContext(msg.id._serialized, analysis);
+              }
+            }
+            if (settings.visionEnabled && mime.includes("video")) {
+              log("INFO", "Processing Video...");
+              const analysis = await analyzeMedia("video", media.data, mime);
+              if (analysis) {
+                multimodalContext = `[VIDEO ANALYSIS]: "${analysis}"`;
+                msg.body = msg.body ? `${msg.body} 
+(Sent a Video: ${analysis})` : `(Sent a Video: ${analysis})`;
+                await saveMessageContext(msg.id._serialized, analysis);
+              }
+            }
+          }
+        } catch (mediaError) {
+          log("ERROR", `Failed to download/process media: ${mediaError}`);
+        }
+      }
+      msg._multimodalContext = multimodalContext;
       this.queueService.enqueue(
         msg.from,
         msg,
@@ -1521,21 +1680,26 @@ class WhatsAppClient {
         return { status: "failed", error: "Chat context unavailable" };
       }
       const combinedQuery = messages.map((m) => m.body).join("\n");
+      const combinedMultimodal = messages.map((m) => m._multimodalContext).filter(Boolean).join("\n\n");
       log("INFO", `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`);
       let history = [];
       try {
         const fetchedMessages = await chat.fetchMessages({ limit: 30 });
         const currentBatchIds = new Set(messages.map((m) => m.id._serialized));
-        history = fetchedMessages.filter((m) => !currentBatchIds.has(m.id._serialized)).map((m) => ({
-          role: m.fromMe ? "model" : "user",
-          content: m.body
-        }));
+        const historyPromises = fetchedMessages.filter((m) => !currentBatchIds.has(m.id._serialized)).map(async (m) => {
+          const context = await getMessageContext(m.id._serialized);
+          const role = m.fromMe ? "model" : "user";
+          const content = context ? `${m.body}
+[Context: ${context}]` : m.body;
+          return { role, content };
+        });
+        history = await Promise.all(historyPromises);
       } catch (histError) {
         log("WARN", `Failed to fetch history: ${histError}`);
       }
       let reply;
       try {
-        reply = await generateAIReply(combinedQuery, settings.systemPrompt, history);
+        reply = await generateAIReply(combinedQuery, settings.systemPrompt, history, combinedMultimodal);
       } catch (aiError) {
         const errorStr = String(aiError);
         log("ERROR", `AI Gen Failed: ${errorStr}`);
@@ -1545,14 +1709,13 @@ class WhatsAppClient {
         log("WARN", "No reply generated by AI (Empty response)");
         return { status: "skipped", error: "Empty AI Response" };
       }
-      const handoverRequested = messages.some(
-        (m) => settings.humanHandoverEnabled && this.detectHandoverRequest(m.body)
+      const handoverRequested = settings.humanHandoverEnabled && messages.some(
+        (m) => this.detectHandoverRequest(m.body)
       );
       if (handoverRequested) {
-        log("INFO", `Human handover requested by ${contactName}`);
-        return { status: "skipped", error: "Handover Requested" };
+        log("INFO", `Human handover requested by ${contactName} - Force creating draft`);
       }
-      if (settings.draftMode) {
+      if (settings.draftMode || handoverRequested) {
         const draft = {
           id: `draft_${Date.now()}`,
           chatId: chat.id._serialized,
@@ -1564,6 +1727,7 @@ class WhatsAppClient {
           // Store the FULL aggregated query
           proposedReply: reply.text,
           sentiment: reply.sentiment,
+          isHandover: handoverRequested || false,
           createdAt: Date.now()
         };
         try {
@@ -1600,16 +1764,19 @@ class WhatsAppClient {
   }
   shouldReply(msg, settings, contact) {
     if (msg.fromMe) return false;
+    const senderNumber = msg.from.replace("@c.us", "");
+    if (settings.blacklist.includes(msg.from) || settings.blacklist.includes(senderNumber)) {
+      log("DEBUG", `Blocked by blacklist: ${msg.from}`);
+      return false;
+    }
+    if (settings.whitelist.includes(msg.from) || settings.whitelist.includes(senderNumber)) {
+      log("DEBUG", `Allowed by whitelist: ${msg.from}`);
+      return true;
+    }
     if (settings.ignoreGroups && msg.from.includes("@g.us")) {
       return false;
     }
     if (settings.ignoreStatuses && msg.from.includes("@broadcast")) {
-      return false;
-    }
-    if (settings.blacklist.includes(msg.from)) {
-      return false;
-    }
-    if (settings.whitelist.length > 0 && !settings.whitelist.includes(msg.from)) {
       return false;
     }
     if (settings.unsavedContactsOnly) {

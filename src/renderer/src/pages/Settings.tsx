@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { useAppStore, useSettingsStore } from '../store'
 import { useState } from 'react'
 import type { Settings } from '../../../shared/types'
@@ -18,6 +18,8 @@ export default function SettingsPage() {
     })
     const [botName, setBotName] = useState(settings?.botName || 'JStar')
     const [currency, setCurrency] = useState(settings?.currency || '₦')
+    const [whitelist, setWhitelist] = useState<string[]>(settings?.whitelist || [])
+    const [blacklist, setBlacklist] = useState<string[]>(settings?.blacklist || [])
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
     const handleToggle = async (key: keyof Settings, value: boolean) => {
@@ -33,7 +35,9 @@ export default function SettingsPage() {
             licenseKey,
             businessProfile,
             botName,
-            currency
+            currency,
+            whitelist,
+            blacklist
         }
 
         try {
@@ -207,6 +211,29 @@ export default function SettingsPage() {
                         onChange={(v) => handleToggle('safeModeEnabled', v)}
                     />
 
+                    <ToggleRow
+                        title="Voice Note Handling"
+                        description="Transcribe and reply to incoming voice notes (Uses Groq/Gemini)."
+                        checked={settings.voiceEnabled}
+                        onChange={(v) => handleToggle('voiceEnabled', v)}
+                    />
+
+                    <ToggleRow
+                        title="Multimodal Vision"
+                        description="Analyze incoming images using Gemini Vision."
+                        checked={settings.visionEnabled}
+                        onChange={(v) => handleToggle('visionEnabled', v)}
+                    />
+
+                    <ToggleRow
+                        title="Allow Human Handover"
+                        description="If enabled, bot pauses when user asks for a human."
+                        checked={settings.humanHandoverEnabled}
+                        onChange={(v) => handleToggle('humanHandoverEnabled', v)}
+                    />
+
+
+
                     <div className={`flex items-center justify-between ${settings.draftMode ? 'opacity-50 pointer-events-none' : ''}`}>
                         <div>
                             <h3 className="font-medium text-slate-900 dark:text-white">Fully Autonomous</h3>
@@ -243,6 +270,28 @@ export default function SettingsPage() {
                 </div>
             </Section>
 
+            {/* Access Control */}
+            <Section title="Access Control">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <StringListEditor
+                        title="Whitelist (Always Reply)"
+                        description="These numbers will ALWAYS get a reply, ignoring other filters/delays."
+                        items={whitelist}
+                        setItems={setWhitelist}
+                        placeholder="e.g. 2348012345678"
+                        color="emerald"
+                    />
+                    <StringListEditor
+                        title="Blacklist (Ignore)"
+                        description="These numbers will NEVER get a reply."
+                        items={blacklist}
+                        setItems={setBlacklist}
+                        placeholder="e.g. 2348012345678"
+                        color="rose"
+                    />
+                </div>
+            </Section>
+
             {/* System */}
             <Section title="System">
                 <div className="glass p-6 rounded-2xl space-y-6">
@@ -251,8 +300,8 @@ export default function SettingsPage() {
                         <div className="flex items-center justify-between">
                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">License Key</label>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${settings.licenseStatus === 'active'
-                                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                                    : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
                                 }`}>
                                 {settings.licenseStatus}
                             </span>
@@ -275,17 +324,32 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    {/* System Prompt */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                            System Prompt (Persona)
-                        </label>
+                    {/* Persona Management */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Active Persona
+                            </label>
+                            <div className="flex bg-slate-100 dark:bg-white/5 p-1 rounded-lg">
+                                {/* Simple Persona Switcher for now - purely visual if we don't implement full CRUD yet */}
+                                <button className="px-3 py-1 bg-white dark:bg-white/10 shadow-sm rounded text-xs font-semibold text-slate-700 dark:text-white">
+                                    Default
+                                </button>
+                                <button className="px-3 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                                    + New
+                                </button>
+                            </div>
+                        </div>
+
                         <textarea
                             value={systemPrompt}
                             onChange={(e) => setSystemPrompt(e.target.value)}
+                            placeholder="You are a helpful assistant..."
                             className="w-full h-32 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none font-mono text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
                         />
-                        <p className="text-xs text-slate-500">This instruction guides the AI's personality and behavior.</p>
+                        <p className="text-xs text-slate-500">
+                            Define the AI's personality. {settings.voiceEnabled ? 'This also applies to Voice Note replies.' : ''}
+                        </p>
                     </div>
                 </div>
             </Section>
@@ -344,7 +408,7 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </Section>
-        </div >
+        </div>
     )
 }
 
@@ -384,6 +448,103 @@ function ToggleRow({
                 />
                 <label className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors ${checked ? 'bg-brand-500' : 'bg-slate-300 dark:bg-surface-800'
                     }`} />
+            </div>
+        </div>
+    )
+}
+
+function StringListEditor({
+    title,
+    description,
+    items,
+    setItems,
+    placeholder,
+    color = 'brand'
+}: {
+    title: string
+    description: string
+    items: string[]
+    setItems: (items: string[]) => void
+    placeholder: string
+    color?: 'brand' | 'emerald' | 'rose'
+}) {
+    const [newItem, setNewItem] = useState('')
+
+    const handleAdd = () => {
+        if (!newItem.trim()) return
+        // Basic normalization: remove spaces, +, etc if needed? 
+        // For now, trust the user or just trim. 
+        // Backend handles logic, but cleaning here implies better UX.
+        const clean = newItem.trim().replace(/[\s+]/g, '')
+
+        if (items.includes(clean)) {
+            setNewItem('')
+            return
+        }
+
+        setItems([...items, clean])
+        setNewItem('')
+    }
+
+    const handleDelete = (item: string) => {
+        setItems(items.filter(i => i !== item))
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            handleAdd()
+        }
+    }
+
+    const colorClasses = {
+        brand: 'focus:ring-brand-500 text-brand-600',
+        emerald: 'focus:ring-emerald-500 text-emerald-600',
+        rose: 'focus:ring-rose-500 text-rose-600'
+    }
+
+    return (
+        <div className="glass p-6 rounded-2xl flex flex-col h-full">
+            <div className="mb-4">
+                <h3 className="font-medium text-slate-900 dark:text-white">{title}</h3>
+                <p className="text-xs text-slate-500">{description}</p>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+                <input
+                    type="text"
+                    value={newItem}
+                    onChange={(e) => setNewItem(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={placeholder}
+                    className={`flex-1 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none transition-all ${colorClasses[color].split(' ')[0]}`}
+                />
+                <button
+                    onClick={handleAdd}
+                    className={`p-2 rounded-lg bg-slate-100 dark:bg-surface-700 hover:bg-slate-200 dark:hover:bg-surface-600 transition-colors ${colorClasses[color].split(' ')[1]}`}
+                >
+                    <Plus className="w-5 h-5" />
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-48 space-y-2 pr-1 custom-scrollbar">
+                {items.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-slate-400 italic">
+                        No numbers added
+                    </div>
+                ) : (
+                    items.map(item => (
+                        <div key={item} className="flex items-center justify-between p-2 rounded-lg bg-slate-50/50 dark:bg-surface-800/50 border border-slate-100 dark:border-white/5">
+                            <span className="text-sm font-mono text-slate-600 dark:text-slate-300">{item}</span>
+                            <button
+                                onClick={() => handleDelete(item)}
+                                className="text-slate-400 hover:text-rose-500 transition-colors"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     )

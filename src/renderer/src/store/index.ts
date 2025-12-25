@@ -73,7 +73,11 @@ const defaultSettings: Settings = {
     botName: 'JStar',
     currency: '₦',
     licenseStatus: 'trial',
-    licensePlan: 'free'
+    licensePlan: 'free',
+    voiceEnabled: false,
+    visionEnabled: false,
+    personas: [],
+    activePersonaId: undefined
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({

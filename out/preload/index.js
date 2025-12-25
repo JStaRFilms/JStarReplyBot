@@ -26,7 +26,18 @@ zod.z.object({
   botName: zod.z.string().default("JStar"),
   currency: zod.z.string().default("₦"),
   licenseStatus: zod.z.enum(["active", "expired", "invalid", "trial"]).default("trial"),
-  licensePlan: zod.z.string().default("free")
+  licensePlan: zod.z.string().default("free"),
+  // New Features
+  voiceEnabled: zod.z.boolean().default(false),
+  visionEnabled: zod.z.boolean().default(false),
+  personas: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    name: zod.z.string(),
+    description: zod.z.string(),
+    systemPrompt: zod.z.string(),
+    tone: zod.z.enum(["professional", "friendly", "enthusiastic", "formal", "custom"])
+  })).default([]),
+  activePersonaId: zod.z.string().optional()
 });
 const IPC_CHANNELS = {
   // Bot control

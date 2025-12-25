@@ -12,6 +12,7 @@ interface DatabaseSchema {
     documents: KnowledgeDocument[]
     catalog: CatalogItem[]
     drafts: DraftMessage[]
+    messageContexts: Record<string, string> // messageId -> description
 }
 
 const defaultData: DatabaseSchema = {
@@ -23,7 +24,8 @@ const defaultData: DatabaseSchema = {
     },
     documents: [],
     catalog: [],
-    drafts: []
+    drafts: [],
+    messageContexts: {}
 }
 
 let db: Low<DatabaseSchema> | null = null
@@ -215,4 +217,19 @@ export async function seedDatabase(): Promise<void> {
     // db.data.stats = { ...defaultData.stats }
 
     await db.write()
+}
+
+// ============ Message Context Memory ============
+export async function saveMessageContext(messageId: string, description: string): Promise<void> {
+    const db = getDb()
+    await db.read()
+    if (!db.data.messageContexts) db.data.messageContexts = {}
+    db.data.messageContexts[messageId] = description
+    await db.write()
+}
+
+export async function getMessageContext(messageId: string): Promise<string | undefined> {
+    const db = getDb()
+    await db.read()
+    return db.data.messageContexts?.[messageId]
 }

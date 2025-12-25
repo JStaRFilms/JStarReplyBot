@@ -169,6 +169,11 @@ export default function Home() {
                                         <div className="flex justify-between mb-2">
                                             <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
                                                 {draft.sentiment === 'high' && <AlertOctagon className="w-3 h-3 text-rose-500" />}
+                                                {draft.isHandover && (
+                                                    <span className="bg-rose-500 text-white px-1.5 py-0.5 rounded animate-pulse">
+                                                        HUMAN NEEDED
+                                                    </span>
+                                                )}
                                                 {draft.contactName}
                                             </span>
                                             <button

@@ -4,8 +4,9 @@ import { app } from 'electron'
 import { join } from 'path'
 import * as qrcode from 'qrcode'
 import { log } from './logger'
-import { getSettings, incrementStats, getDrafts as getDbDrafts, addDraft as addDbDraft, removeDraft as removeDbDraft, updateDraft as updateDbDraft } from './db'
+import { getSettings, incrementStats, getDrafts as getDbDrafts, addDraft as addDbDraft, removeDraft as removeDbDraft, updateDraft as updateDbDraft, saveMessageContext, getMessageContext } from './db'
 import { generateAIReply } from './ai-engine'
+import { analyzeMedia } from './services/multimodal.service'
 import { SmartQueueService } from './services/queue.service'
 import type { ConnectionStatus, DraftMessage, Settings } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/types'
@@ -119,7 +120,13 @@ export class WhatsAppClient {
             // Pre-check for simple filters
             if (msg.fromMe) return
             if (settings.ignoreGroups && msg.from.includes('@g.us')) return
-            if (settings.ignoreStatuses && msg.from.includes('@broadcast')) return
+            if (settings.ignoreGroups && msg.from.includes('@g.us')) return
+            if (settings.ignoreStatuses && msg.from.includes('@broadcast') && !msg.from.includes('@newsletter')) return
+            if (msg.from.includes('@newsletter')) return
+
+            // Ignore system messages and non-chat types
+            const ignoredTypes = ['e2e_notification', 'call_log', 'protocol', 'gp2', 'notification_template', 'ciphertext', 'revoked']
+            if (ignoredTypes.includes(msg.type)) return
 
             // Detailed contact lookup
             let contact
@@ -149,8 +156,58 @@ export class WhatsAppClient {
                 contactName = rawName || contactNumber
             }
 
+            // MULTIMODAL HANDLING
+            let multimodalContext = ''
+            if (msg.hasMedia) {
+                try {
+                    const media = await msg.downloadMedia()
+                    if (media) {
+                        const mime = media.mimetype
+
+                        // Audio Handling
+                        if (settings.voiceEnabled && (mime.includes('audio') || mime.includes('ogg'))) {
+                            log('INFO', 'Processing Voice Note...')
+                            const analysis = await analyzeMedia('audio', media.data, mime)
+                            if (analysis) {
+                                multimodalContext = `[VOICE NOTE TRANSCRIPTION]: "${analysis}"`
+                                msg.body = `(Sent a Voice Note: "${analysis}")`
+                                await saveMessageContext(msg.id._serialized, analysis)
+                            }
+                        }
+
+                        // Image & Sticker Handling
+                        if (settings.visionEnabled && (mime.includes('image') || mime.includes('sticker'))) {
+                            log('INFO', 'Processing Image/Sticker...')
+                            const analysis = await analyzeMedia('image', media.data, mime)
+                            if (analysis) {
+                                multimodalContext = `[IMAGE ANALYSIS]: "${analysis}"`
+                                msg.body = msg.body ? `${msg.body} \n(Sent an Image: ${analysis})` : `(Sent an Image: ${analysis})`
+                                await saveMessageContext(msg.id._serialized, analysis)
+                            }
+                        }
+
+                        // Video Handling
+                        if (settings.visionEnabled && (mime.includes('video'))) {
+                            log('INFO', 'Processing Video...')
+                            const analysis = await analyzeMedia('video', media.data, mime)
+                            if (analysis) {
+                                multimodalContext = `[VIDEO ANALYSIS]: "${analysis}"`
+                                msg.body = msg.body ? `${msg.body} \n(Sent a Video: ${analysis})` : `(Sent a Video: ${analysis})`
+                                await saveMessageContext(msg.id._serialized, analysis)
+                            }
+                        }
+                    }
+                } catch (mediaError) {
+                    log('ERROR', `Failed to download/process media: ${mediaError}`)
+                }
+            }
+
             // ENQUEUE: Push to Smart Aggregation Queue
             // using msg.from (phone number) as the unique key
+            // We attach the context to the message object (hacky but works for now)
+            // @ts-ignore
+            msg._multimodalContext = multimodalContext
+
             this.queueService.enqueue(msg.from, msg, (messages) =>
                 this.processAggregatedMessages(messages, settings, contactName)
             )
@@ -180,6 +237,10 @@ export class WhatsAppClient {
             // Combine message bodies with newlines to form a coherent thought
             const combinedQuery = messages.map(m => m.body).join('\n')
 
+            // Combine multimodal contexts
+            // @ts-ignore
+            const combinedMultimodal = messages.map(m => m._multimodalContext).filter(Boolean).join('\n\n')
+
             log('INFO', `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`)
 
             // Fetch conversation history (Last 30 messages)
@@ -190,12 +251,17 @@ export class WhatsAppClient {
                 // We identify them by ID
                 const currentBatchIds = new Set(messages.map(m => m.id._serialized))
 
-                history = fetchedMessages
+                const historyPromises = fetchedMessages
                     .filter(m => !currentBatchIds.has(m.id._serialized))
-                    .map(m => ({
-                        role: m.fromMe ? 'model' : 'user',
-                        content: m.body
-                    }))
+                    .map(async m => {
+                        const context = await getMessageContext(m.id._serialized)
+                        const role = m.fromMe ? 'model' : 'user'
+                        // Enrich content with persisted multimodal context if available
+                        const content = context ? `${m.body}\n[Context: ${context}]` : m.body
+                        return { role, content } as { role: 'user' | 'model'; content: string }
+                    })
+
+                history = await Promise.all(historyPromises)
             } catch (histError) {
                 log('WARN', `Failed to fetch history: ${histError}`)
             }
@@ -203,7 +269,7 @@ export class WhatsAppClient {
             // Generate AI reply using the COMBINED query
             let reply
             try {
-                reply = await generateAIReply(combinedQuery, settings.systemPrompt, history)
+                reply = await generateAIReply(combinedQuery, settings.systemPrompt, history, combinedMultimodal)
             } catch (aiError) {
                 const errorStr = String(aiError)
                 log('ERROR', `AI Gen Failed: ${errorStr}`)
@@ -215,18 +281,20 @@ export class WhatsAppClient {
                 return { status: 'skipped', error: 'Empty AI Response' }
             }
 
-            // Check for human handover keywords in ANY of the messages
-            const handoverRequested = messages.some(m =>
-                settings.humanHandoverEnabled && this.detectHandoverRequest(m.body)
+            // Check for human handover keywords
+            const handoverRequested = settings.humanHandoverEnabled && messages.some(m =>
+                this.detectHandoverRequest(m.body)
             )
 
             if (handoverRequested) {
-                log('INFO', `Human handover requested by ${contactName}`)
-                return { status: 'skipped', error: 'Handover Requested' }
+                log('INFO', `Human handover requested by ${contactName} - Force creating draft`)
             }
 
-            // Draft mode: queue for approval
-            if (settings.draftMode) {
+            // Decide: Draft or Auto-Send?
+            // FORCE DRAFT if:
+            // 1. Settings.draftMode is ON
+            // 2. Handover is requested (Safety first)
+            if (settings.draftMode || handoverRequested) {
                 const draft: DraftMessage = {
                     id: `draft_${Date.now()}`,
                     chatId: chat.id._serialized,
@@ -236,6 +304,7 @@ export class WhatsAppClient {
                     query: combinedQuery, // Store the FULL aggregated query
                     proposedReply: reply.text,
                     sentiment: reply.sentiment,
+                    isHandover: handoverRequested || false,
                     createdAt: Date.now()
                 }
 
@@ -280,32 +349,37 @@ export class WhatsAppClient {
     }
 
     private shouldReply(msg: Message, settings: Settings, contact?: Contact): boolean {
-        // Ignore own messages
+        // 1. Ignore own messages (Always)
         if (msg.fromMe) return false
 
-        // Ignore groups if setting enabled
+        // 2. Blacklist Check (Always Ignore)
+        // Check exact match or raw number match
+        const senderNumber = msg.from.replace('@c.us', '')
+        if (settings.blacklist.includes(msg.from) || settings.blacklist.includes(senderNumber)) {
+            log('DEBUG', `Blocked by blacklist: ${msg.from}`)
+            return false
+        }
+
+        // 3. Whitelist Check (Always Allow / Priority)
+        // If whitelisted, we skip other filters (Groups, Statuses, Unsaved Only)
+        if (settings.whitelist.includes(msg.from) || settings.whitelist.includes(senderNumber)) {
+            log('DEBUG', `Allowed by whitelist: ${msg.from}`)
+            return true
+        }
+
+        // 4. Ignore groups if setting enabled
         if (settings.ignoreGroups && msg.from.includes('@g.us')) {
             return false
         }
 
-        // Ignore status broadcasts if setting enabled
+        // 5. Ignore status broadcasts if setting enabled
         if (settings.ignoreStatuses && msg.from.includes('@broadcast')) {
             return false
         }
 
-        // Blacklist check
-        if (settings.blacklist.includes(msg.from)) {
-            return false
-        }
-
-        // Whitelist mode: only reply to whitelisted
-        if (settings.whitelist.length > 0 && !settings.whitelist.includes(msg.from)) {
-            return false
-        }
-
-        // Unsaved Contacts Only check
+        // 6. Unsaved Contacts Only check
+        // "Unsaved" means NOT in my contacts AND no name in phonebook
         if (settings.unsavedContactsOnly) {
-            // A contact is "Saved" if isMyContact is true OR they have a name in our phonebook
             const isSaved = contact?.isMyContact || (contact?.name && contact?.name !== contact?.number)
             if (isSaved) {
                 log('DEBUG', `Skipping message from saved contact: ${contact?.name || msg.from}`)

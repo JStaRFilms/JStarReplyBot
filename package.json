@@ -15,11 +15,12 @@
     "build:linux": "pnpm build && electron-builder --linux"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^1.0.0",
+    "@ai-sdk/google": "^3.0.1",
+    "@ai-sdk/groq": "^1.2.9",
     "@anthropic-ai/sdk": "^0.32.1",
     "@google/generative-ai": "^0.21.0",
     "@lancedb/lancedb": "^0.13.0",
-    "ai": "^4.0.0",
+    "ai": "^6.0.3",
     "dotenv": "^17.2.3",
     "electron-updater": "^6.3.9",
     "lowdb": "^7.0.1",

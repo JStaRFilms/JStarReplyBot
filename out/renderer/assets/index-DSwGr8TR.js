@@ -7809,7 +7809,11 @@ const defaultSettings = {
   botName: "JStar",
   currency: "₦",
   licenseStatus: "trial",
-  licensePlan: "free"
+  licensePlan: "free",
+  voiceEnabled: false,
+  visionEnabled: false,
+  personas: [],
+  activePersonaId: void 0
 };
 const useSettingsStore = create((set) => ({
   settings: defaultSettings,
@@ -8112,6 +8116,7 @@ function Home() {
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between mb-2", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1", children: [
                 draft.sentiment === "high" && /* @__PURE__ */ jsxRuntimeExports.jsx(OctagonAlert, { className: "w-3 h-3 text-rose-500" }),
+                draft.isHandover && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "bg-rose-500 text-white px-1.5 py-0.5 rounded animate-pulse", children: "HUMAN NEEDED" }),
                 draft.contactName
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -8444,6 +8449,8 @@ function SettingsPage() {
   });
   const [botName, setBotName] = reactExports.useState(settings?.botName || "JStar");
   const [currency, setCurrency] = reactExports.useState(settings?.currency || "₦");
+  const [whitelist, setWhitelist] = reactExports.useState(settings?.whitelist || []);
+  const [blacklist, setBlacklist] = reactExports.useState(settings?.blacklist || []);
   const [saveStatus, setSaveStatus] = reactExports.useState("idle");
   const handleToggle = async (key, value) => {
     if (!settings) return;
@@ -8457,7 +8464,9 @@ function SettingsPage() {
       licenseKey,
       businessProfile,
       botName,
-      currency
+      currency,
+      whitelist,
+      blacklist
     };
     try {
       const res = await window.electron.saveSettings(newSettings);
@@ -8628,6 +8637,33 @@ function SettingsPage() {
           onChange: (v) => handleToggle("safeModeEnabled", v)
         }
       ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ToggleRow,
+        {
+          title: "Voice Note Handling",
+          description: "Transcribe and reply to incoming voice notes (Uses Groq/Gemini).",
+          checked: settings.voiceEnabled,
+          onChange: (v) => handleToggle("voiceEnabled", v)
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ToggleRow,
+        {
+          title: "Multimodal Vision",
+          description: "Analyze incoming images using Gemini Vision.",
+          checked: settings.visionEnabled,
+          onChange: (v) => handleToggle("visionEnabled", v)
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ToggleRow,
+        {
+          title: "Allow Human Handover",
+          description: "If enabled, bot pauses when user asks for a human.",
+          checked: settings.humanHandoverEnabled,
+          onChange: (v) => handleToggle("humanHandoverEnabled", v)
+        }
+      ),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `flex items-center justify-between ${settings.draftMode ? "opacity-50 pointer-events-none" : ""}`, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "font-medium text-slate-900 dark:text-white", children: "Fully Autonomous" }),
@@ -8665,6 +8701,30 @@ function SettingsPage() {
         }
       )
     ] }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Access Control", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-6", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        StringListEditor,
+        {
+          title: "Whitelist (Always Reply)",
+          description: "These numbers will ALWAYS get a reply, ignoring other filters/delays.",
+          items: whitelist,
+          setItems: setWhitelist,
+          placeholder: "e.g. 2348012345678",
+          color: "emerald"
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        StringListEditor,
+        {
+          title: "Blacklist (Ignore)",
+          description: "These numbers will NEVER get a reply.",
+          items: blacklist,
+          setItems: setBlacklist,
+          placeholder: "e.g. 2348012345678",
+          color: "rose"
+        }
+      )
+    ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "System", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "glass p-6 rounded-2xl space-y-6", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
@@ -8693,17 +8753,27 @@ function SettingsPage() {
           )
         ] })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "System Prompt (Persona)" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: "text-sm font-medium text-slate-700 dark:text-slate-300", children: "Active Persona" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex bg-slate-100 dark:bg-white/5 p-1 rounded-lg", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "px-3 py-1 bg-white dark:bg-white/10 shadow-sm rounded text-xs font-semibold text-slate-700 dark:text-white", children: "Default" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "px-3 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300", children: "+ New" })
+          ] })
+        ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "textarea",
           {
             value: systemPrompt,
             onChange: (e) => setSystemPrompt(e.target.value),
+            placeholder: "You are a helpful assistant...",
             className: "w-full h-32 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none font-mono text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: "This instruction guides the AI's personality and behavior." })
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-xs text-slate-500", children: [
+          "Define the AI's personality. ",
+          settings.voiceEnabled ? "This also applies to Voice Note replies." : ""
+        ] })
       ] })
     ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-end gap-4 pt-4", children: [
@@ -8777,6 +8847,78 @@ function ToggleRow({
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx("label", { className: `toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors ${checked ? "bg-brand-500" : "bg-slate-300 dark:bg-surface-800"}` })
     ] })
+  ] });
+}
+function StringListEditor({
+  title,
+  description,
+  items,
+  setItems,
+  placeholder,
+  color = "brand"
+}) {
+  const [newItem, setNewItem] = reactExports.useState("");
+  const handleAdd = () => {
+    if (!newItem.trim()) return;
+    const clean = newItem.trim().replace(/[\s+]/g, "");
+    if (items.includes(clean)) {
+      setNewItem("");
+      return;
+    }
+    setItems([...items, clean]);
+    setNewItem("");
+  };
+  const handleDelete = (item) => {
+    setItems(items.filter((i) => i !== item));
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAdd();
+    }
+  };
+  const colorClasses = {
+    brand: "focus:ring-brand-500 text-brand-600",
+    emerald: "focus:ring-emerald-500 text-emerald-600",
+    rose: "focus:ring-rose-500 text-rose-600"
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "glass p-6 rounded-2xl flex flex-col h-full", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-4", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "font-medium text-slate-900 dark:text-white", children: title }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-slate-500", children: description })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 mb-4", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "input",
+        {
+          type: "text",
+          value: newItem,
+          onChange: (e) => setNewItem(e.target.value),
+          onKeyDown: handleKeyDown,
+          placeholder,
+          className: `flex-1 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm outline-none transition-all ${colorClasses[color].split(" ")[0]}`
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: handleAdd,
+          className: `p-2 rounded-lg bg-slate-100 dark:bg-surface-700 hover:bg-slate-200 dark:hover:bg-surface-600 transition-colors ${colorClasses[color].split(" ")[1]}`,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Plus, { className: "w-5 h-5" })
+        }
+      )
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 overflow-y-auto max-h-48 space-y-2 pr-1 custom-scrollbar", children: items.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-center py-6 text-xs text-slate-400 italic", children: "No numbers added" }) : items.map((item) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between p-2 rounded-lg bg-slate-50/50 dark:bg-surface-800/50 border border-slate-100 dark:border-white/5", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm font-mono text-slate-600 dark:text-slate-300", children: item }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: () => handleDelete(item),
+          className: "text-slate-400 hover:text-rose-500 transition-colors",
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { className: "w-4 h-4" })
+        }
+      )
+    ] }, item)) })
   ] });
 }
 function LogsPage() {

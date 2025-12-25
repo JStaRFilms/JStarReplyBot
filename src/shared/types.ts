@@ -26,7 +26,19 @@ export const SettingsSchema = z.object({
     botName: z.string().default('JStar'),
     currency: z.string().default('₦'),
     licenseStatus: z.enum(['active', 'expired', 'invalid', 'trial']).default('trial'),
-    licensePlan: z.string().default('free')
+    licensePlan: z.string().default('free'),
+
+    // New Features
+    voiceEnabled: z.boolean().default(false),
+    visionEnabled: z.boolean().default(false),
+    personas: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        systemPrompt: z.string(),
+        tone: z.enum(['professional', 'friendly', 'enthusiastic', 'formal', 'custom'])
+    })).default([]),
+    activePersonaId: z.string().optional()
 })
 export type Settings = z.infer<typeof SettingsSchema>
 
@@ -40,6 +52,7 @@ export interface DraftMessage {
     query: string
     proposedReply: string
     sentiment: 'low' | 'medium' | 'high'
+    isHandover?: boolean
     createdAt: number
 }
 
