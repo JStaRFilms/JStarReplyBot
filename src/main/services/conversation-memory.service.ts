@@ -356,3 +356,30 @@ export async function getMemoryStats(contactId: string): Promise<{ messageCount:
         return { messageCount: 0, oldestTimestamp: null }
     }
 }
+
+/**
+ * Export all memory for a contact as JSON (Dev feature)
+ */
+export async function exportContactMemory(contactId: string): Promise<ConversationMemoryRecord[]> {
+    try {
+        const table = await getContactTable(contactId)
+        if (!table) return []
+
+        const allRecords = await table.search().limit(10000).toArray()
+
+        // Return without vectors (they're huge)
+        return allRecords.map((r: any) => ({
+            id: r.id,
+            contactId: r.contactId,
+            role: r.role,
+            text: r.text,
+            mediaContext: r.mediaContext,
+            timestamp: r.timestamp,
+            vector: [] // Omit for export
+        }))
+
+    } catch (error) {
+        log('ERROR', `Failed to export contact memory: ${error}`)
+        return []
+    }
+}

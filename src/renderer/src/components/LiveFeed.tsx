@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Zap, AlertCircle, MinusCircle, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { QueueProcessedEvent } from '../../../shared/types'
+import { Edition } from '../../../shared/config/features'
 
 type LiveFeedProps = {
     events: QueueProcessedEvent[]
+    edition?: Edition
 }
 
-export function LiveFeed({ events }: LiveFeedProps) {
+export function LiveFeed({ events, edition = 'personal' }: LiveFeedProps) {
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
     const toggleExpand = (index: number) => {
@@ -114,9 +116,69 @@ export function LiveFeed({ events }: LiveFeedProps) {
                                             </p>
                                         </div>
                                     )}
-                                    <p className="text-[10px] text-slate-400 pt-1">
-                                        Click to collapse
-                                    </p>
+                                    <div className="flex items-center justify-between pt-2">
+                                        <p className="text-[10px] text-slate-400">
+                                            Click to collapse
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            {/* Prune (All tiers) */}
+                                            <button
+                                                onClick={async (e) => {
+                                                    e.stopPropagation()
+                                                    const days = prompt('Delete messages older than how many days?', '30')
+                                                    if (!days) return
+                                                    const res = await window.electron.pruneMemory(event.contactId, parseInt(days))
+                                                    if (res.success) {
+                                                        alert(`Pruned messages older than ${days} days!`)
+                                                    } else {
+                                                        alert('Failed to prune: ' + res.error)
+                                                    }
+                                                }}
+                                                className="text-[10px] text-amber-500 hover:text-amber-600 font-medium px-2 py-1 rounded hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
+                                            >
+                                                Prune Old
+                                            </button>
+                                            {/* Export (Dev only) */}
+                                            {edition === 'dev' && (
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation()
+                                                        const res = await window.electron.exportMemory(event.contactId)
+                                                        if (res.success && res.data) {
+                                                            const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' })
+                                                            const url = URL.createObjectURL(blob)
+                                                            const a = document.createElement('a')
+                                                            a.href = url
+                                                            a.download = `memory_${event.contactId.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+                                                            a.click()
+                                                            URL.revokeObjectURL(url)
+                                                        } else {
+                                                            alert('Failed to export: ' + (res.error || 'No data'))
+                                                        }
+                                                    }}
+                                                    className="text-[10px] text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                                                >
+                                                    Export
+                                                </button>
+                                            )}
+                                            {/* Forget Me */}
+                                            <button
+                                                onClick={async (e) => {
+                                                    e.stopPropagation()
+                                                    if (!confirm(`Forget all conversation memory for ${event.contactName || event.contactId}?`)) return
+                                                    const res = await window.electron.forgetContact(event.contactId)
+                                                    if (res.success) {
+                                                        alert('Memory cleared!')
+                                                    } else {
+                                                        alert('Failed to clear memory: ' + res.error)
+                                                    }
+                                                }}
+                                                className="text-[10px] text-rose-500 hover:text-rose-600 font-medium px-2 py-1 rounded hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                                            >
+                                                Forget Me
+                                            </button>
+                                        </div>
+                                    </div>
                                 </>
                             ) : (
                                 <>

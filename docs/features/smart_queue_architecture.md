@@ -76,3 +76,24 @@ The UI (`src/renderer/src/components/LiveFeed.tsx`) renders events with:
   - Error details (if failed)
 - **Chevron icons** indicate expand/collapse state
 
+---
+
+## Feature Flags
+
+| Edition | Smart Queue |
+|---------|-------------|
+| Personal | ✅ (max 10) |
+| Business | ✅ (max 5) |
+| Dev | ✅ (max 100) |
+
+---
+
+## Changelog
+
+### 2025-12-25: Owner Interception Integration
+- Added `pauseForOwner()`, `hasPendingBuffer()`, `isOwnerPaused()` methods
+- Queue now detects owner messages and extends buffer timer
+
+### 2025-12-25: Reply in Event Payload
+- Added `reply` field to `QueueProcessedEvent` for UI display
+- LiveFeed now shows AI response in expanded view

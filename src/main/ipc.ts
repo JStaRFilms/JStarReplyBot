@@ -295,6 +295,37 @@ export function registerIpcHandlers(whatsappClient: WhatsAppClient): void {
         }
     })
 
+    // ============ Conversation Memory ============
+    ipcMain.handle(IPC_CHANNELS.FORGET_CONTACT, async (_, contactId: string): Promise<IPCResponse> => {
+        try {
+            const { deleteContactMemory } = await import('./services/conversation-memory.service')
+            const success = await deleteContactMemory(contactId)
+            return { success }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.PRUNE_MEMORY, async (_, { contactId, days }: { contactId: string; days: number }): Promise<IPCResponse> => {
+        try {
+            const { pruneOldMemory } = await import('./services/conversation-memory.service')
+            await pruneOldMemory(contactId, days)
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.EXPORT_MEMORY, async (_, contactId: string): Promise<IPCResponse> => {
+        try {
+            const { exportContactMemory } = await import('./services/conversation-memory.service')
+            const data = await exportContactMemory(contactId)
+            return { success: true, data }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
     // ============ Stats ============
 
     ipcMain.handle(IPC_CHANNELS.GET_STATS, async (): Promise<IPCResponse> => {

@@ -106,7 +106,11 @@ const IPC_CHANNELS = {
   // Style Profile
   GET_STYLE_PROFILE: "style:get",
   UPDATE_STYLE_PROFILE: "style:update",
-  DELETE_STYLE_ITEM: "style:delete-item"
+  DELETE_STYLE_ITEM: "style:delete-item",
+  // Conversation Memory
+  FORGET_CONTACT: "memory:forget-contact",
+  PRUNE_MEMORY: "memory:prune",
+  EXPORT_MEMORY: "memory:export"
 };
 const electronAPI = {
   // Bot control
@@ -193,6 +197,10 @@ const electronAPI = {
   // Style Profile
   getStyleProfile: () => electron.ipcRenderer.invoke(IPC_CHANNELS.GET_STYLE_PROFILE),
   updateStyleProfile: (updates) => electron.ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STYLE_PROFILE, updates),
-  deleteStyleItem: (type, value) => electron.ipcRenderer.invoke(IPC_CHANNELS.DELETE_STYLE_ITEM, { type, value })
+  deleteStyleItem: (type, value) => electron.ipcRenderer.invoke(IPC_CHANNELS.DELETE_STYLE_ITEM, { type, value }),
+  // Conversation Memory
+  forgetContact: (contactId) => electron.ipcRenderer.invoke(IPC_CHANNELS.FORGET_CONTACT, contactId),
+  pruneMemory: (contactId, days) => electron.ipcRenderer.invoke(IPC_CHANNELS.PRUNE_MEMORY, { contactId, days }),
+  exportMemory: (contactId) => electron.ipcRenderer.invoke(IPC_CHANNELS.EXPORT_MEMORY, contactId)
 };
 electron.contextBridge.exposeInMainWorld("electron", electronAPI);

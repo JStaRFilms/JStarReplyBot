@@ -42,7 +42,7 @@ export const FEATURE_DEFAULTS: Record<Edition, FeatureConfig> = {
     business: {
         smartQueue: { enabled: true, maxBatchSize: 5 }, // More conservative
         ownerInterception: true,
-        memory: { enabled: false }, // Simplification for business
+        memory: { enabled: true }, // GDPR-compliant with Forget Me
         styleLearning: false, // Professional tone preferred
         multimodal: true,
         licensing: { enabled: true },

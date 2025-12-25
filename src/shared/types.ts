@@ -204,7 +204,12 @@ export const IPC_CHANNELS = {
     // Style Profile
     GET_STYLE_PROFILE: 'style:get',
     UPDATE_STYLE_PROFILE: 'style:update',
-    DELETE_STYLE_ITEM: 'style:delete-item'
+    DELETE_STYLE_ITEM: 'style:delete-item',
+
+    // Conversation Memory
+    FORGET_CONTACT: 'memory:forget-contact',
+    PRUNE_MEMORY: 'memory:prune',
+    EXPORT_MEMORY: 'memory:export'
 } as const
 
 // ============ Queue Types ============

@@ -275,6 +275,21 @@ export default function SettingsPage() {
                         onChange={(v) => handleToggle('humanHandoverEnabled', v)}
                     />
 
+                    {FEATURE_DEFAULTS[settings.edition || 'personal'].memory.enabled && (
+                        <ToggleRow
+                            title="Conversation Memory"
+                            description="Remember past conversations per contact (requires restart)."
+                            checked={settings.conversationMemory?.enabled !== false}
+                            onChange={async (v) => {
+                                const newSettings = {
+                                    conversationMemory: { ...settings.conversationMemory, enabled: v }
+                                }
+                                updateSettings(newSettings)
+                                await window.electron.saveSettings(newSettings)
+                            }}
+                        />
+                    )}
+
 
 
                     <div className={`flex items-center justify-between ${settings.draftMode ? 'opacity-50 pointer-events-none' : ''}`}>

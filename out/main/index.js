@@ -402,7 +402,11 @@ const IPC_CHANNELS = {
   // Style Profile
   GET_STYLE_PROFILE: "style:get",
   UPDATE_STYLE_PROFILE: "style:update",
-  DELETE_STYLE_ITEM: "style:delete-item"
+  DELETE_STYLE_ITEM: "style:delete-item",
+  // Conversation Memory
+  FORGET_CONTACT: "memory:forget-contact",
+  PRUNE_MEMORY: "memory:prune",
+  EXPORT_MEMORY: "memory:export"
 };
 const SEED_PROFILE = {
   name: "James's Bistro & Motors",
@@ -1331,6 +1335,33 @@ function registerIpcHandlers(whatsappClient) {
       return { success: false, error: String(error) };
     }
   });
+  electron.ipcMain.handle(IPC_CHANNELS.FORGET_CONTACT, async (_, contactId) => {
+    try {
+      const { deleteContactMemory: deleteContactMemory2 } = await Promise.resolve().then(() => conversationMemory_service);
+      const success = await deleteContactMemory2(contactId);
+      return { success };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.PRUNE_MEMORY, async (_, { contactId, days }) => {
+    try {
+      const { pruneOldMemory: pruneOldMemory2 } = await Promise.resolve().then(() => conversationMemory_service);
+      await pruneOldMemory2(contactId, days);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.EXPORT_MEMORY, async (_, contactId) => {
+    try {
+      const { exportContactMemory: exportContactMemory2 } = await Promise.resolve().then(() => conversationMemory_service);
+      const data = await exportContactMemory2(contactId);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
   electron.ipcMain.handle(IPC_CHANNELS.GET_STATS, async () => {
     try {
       const stats = await getStats();
@@ -1947,6 +1978,63 @@ async function getRecentHistory(contactId, limit = 10) {
     return [];
   }
 }
+async function pruneOldMemory(contactId, olderThanDays = 30) {
+  try {
+    const table2 = await getContactTable(contactId);
+    if (!table2) return 0;
+    const cutoffTimestamp = Date.now() - olderThanDays * 24 * 60 * 60 * 1e3;
+    await table2.delete(`timestamp < ${cutoffTimestamp}`);
+    log("INFO", `Pruned old messages for ${contactId} (older than ${olderThanDays} days)`);
+    return 1;
+  } catch (error) {
+    log("ERROR", `Failed to prune memory: ${error}`);
+    return 0;
+  }
+}
+async function deleteContactMemory(contactId) {
+  try {
+    await initMemoryDB();
+    if (!db) return false;
+    const sanitizedId = contactId.replace(/[^a-zA-Z0-9]/g, "_");
+    const tableName = `chat_${sanitizedId}`;
+    await db.dropTable(tableName);
+    tableCache.delete(tableName);
+    log("INFO", `Deleted all conversation memory for ${contactId}`);
+    return true;
+  } catch (error) {
+    log("ERROR", `Failed to delete contact memory: ${error}`);
+    return false;
+  }
+}
+async function exportContactMemory(contactId) {
+  try {
+    const table2 = await getContactTable(contactId);
+    if (!table2) return [];
+    const allRecords = await table2.search().limit(1e4).toArray();
+    return allRecords.map((r) => ({
+      id: r.id,
+      contactId: r.contactId,
+      role: r.role,
+      text: r.text,
+      mediaContext: r.mediaContext,
+      timestamp: r.timestamp,
+      vector: []
+      // Omit for export
+    }));
+  } catch (error) {
+    log("ERROR", `Failed to export contact memory: ${error}`);
+    return [];
+  }
+}
+const conversationMemory_service = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  deleteContactMemory,
+  embedMessage,
+  exportContactMemory,
+  getRecentHistory,
+  pruneOldMemory,
+  recallMemory
+}, Symbol.toStringTag, { value: "Module" }));
 class OwnerInterceptService {
   // Map of chatId -> owner activity
   activeChats = /* @__PURE__ */ new Map();
@@ -2058,8 +2146,8 @@ const FEATURE_DEFAULTS = {
     smartQueue: { enabled: true, maxBatchSize: 5 },
     // More conservative
     ownerInterception: true,
-    memory: { enabled: false },
-    // Simplification for business
+    memory: { enabled: true },
+    // GDPR-compliant with Forget Me
     styleLearning: false,
     // Professional tone preferred
     multimodal: true,

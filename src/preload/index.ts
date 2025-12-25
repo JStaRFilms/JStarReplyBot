@@ -136,7 +136,15 @@ const electronAPI = {
     updateStyleProfile: (updates: Partial<StyleProfile>): Promise<IPCResponse> =>
         ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STYLE_PROFILE, updates),
     deleteStyleItem: (type: 'vocabulary' | 'sample', value: string): Promise<IPCResponse> =>
-        ipcRenderer.invoke(IPC_CHANNELS.DELETE_STYLE_ITEM, { type, value })
+        ipcRenderer.invoke(IPC_CHANNELS.DELETE_STYLE_ITEM, { type, value }),
+
+    // Conversation Memory
+    forgetContact: (contactId: string): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.FORGET_CONTACT, contactId),
+    pruneMemory: (contactId: string, days: number): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.PRUNE_MEMORY, { contactId, days }),
+    exportMemory: (contactId: string): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.EXPORT_MEMORY, contactId)
 }
 
 // Expose to renderer

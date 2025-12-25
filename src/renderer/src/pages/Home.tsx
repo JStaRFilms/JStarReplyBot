@@ -136,7 +136,7 @@ export default function Home() {
                             </button>
                         )}
                     </div>
-                    <LiveFeed events={processedEvents} />
+                    <LiveFeed events={processedEvents} edition={settings?.edition} />
                 </div>
 
                 {/* Right: Widgets (1/3) */}

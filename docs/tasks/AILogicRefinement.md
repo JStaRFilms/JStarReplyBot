@@ -1,0 +1,115 @@
+# 🎯 Task: AI Logic Refinement & Business Intelligence
+
+**Objective:** Make the bot smarter, safer, and aware of business flows. Enable learning from owner interventions and track leads through a sales funnel.
+**Priority:** High
+**Scope:** AI Engine, Lead Tracking, Handover Logic, Safety, Conversation Context
+
+---
+
+## 📋 Requirements
+
+### Functional Requirements
+- **[REQ-001] Lead Funnel Tracking:** Track conversations through stages: `inquiry` → `discussion` → `product_shown` → `questions` → `shipping_info` → `payment` → `handover` → `closed`.
+- **[REQ-002] Leads Captured Metric:** Define "Lead Captured" as a contact reaching `product_shown` stage with product intent detected.
+- **[REQ-003] Smart Handover (Business Mode):** If AI confidence is low OR unknown question, handover to human immediately. Log the question.
+- **[REQ-004] Owner Response Learning:** When owner replies after a handover, embed the Q&A pair. Next time, AI knows.
+- **[REQ-005] Safety Layer:** Block offensive/risky prompts from being answered. Detect jailbreak attempts.
+- **[REQ-006] Call/Meeting Context Injection:** If owner takes a call (detected via long silence + owner message "just got off a call with X"), mark context as "external discussion happened, be cautious".
+
+### Technical Requirements
+- **[TECH-001]** Extend `QueueProcessedEvent` with `funnelStage` field.
+- **[TECH-002]** Create `lead-tracker.service.ts` to manage funnel state per contact.
+- **[TECH-003]** Extend `conversation-memory.service.ts` with `embedQAPair()` for owner-taught answers.
+- **[TECH-004]** Add `safetyCheck()` function in `ai-engine.ts` to filter risky inputs/outputs.
+- **[TECH-005]** Add `funnelStages` to LowDB per-contact tracking.
+
+---
+
+## 🏗️ Implementation Plan
+
+### Phase 1: Lead Funnel Foundation
+- [ ] Define `FunnelStage` enum in `types.ts`
+- [ ] Create `lead-tracker.service.ts` with `getStage()`, `advanceStage()`, `resetFunnel()`
+- [ ] Add `leadsPerContact` map to LowDB schema
+- [ ] Update `getStats()` to calculate `leadsCaptured` based on contacts reaching `product_shown`
+
+### Phase 2: Smarter Handover
+- [ ] Add `confidenceScore` to AI reply result (0-1)
+- [ ] If `confidenceScore < 0.5` AND `edition === 'business'`, trigger handover
+- [ ] Log unknown questions to `unknownQuestions[]` in LowDB
+- [ ] Create IPC to view/manage unknown questions in UI
+
+### Phase 3: Owner Response Learning
+- [ ] Detect owner message immediately after bot handover
+- [ ] Extract the pending customer question from context
+- [ ] Call `embedQAPair(contactId, question, ownerAnswer)` to store as training data
+- [ ] On next similar query, retrieve this QA pair in RAG recall
+
+### Phase 4: Safety Layer
+- [ ] Create `safety.service.ts` with `checkInput()` and `checkOutput()`
+- [ ] Blocklist: offensive keywords, jailbreak patterns ("ignore previous instructions")
+- [ ] If triggered, reply with safe fallback: "I'll have someone get back to you on that."
+- [ ] Log safety triggers to a separate log channel
+
+### Phase 5: UI for Leads & Unknowns
+- [ ] Add "Leads" tab or card to Dashboard showing funnel counts
+- [ ] Add "Unknown Questions" panel in Settings (Business Mode only)
+- [ ] Allow marking questions as "Answered" (by owner) or "Ignore"
+
+---
+
+## 📁 Files to Create/Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/shared/types.ts` | Modify | Add `FunnelStage`, `LeadContact`, `UnknownQuestion` |
+| `src/main/services/lead-tracker.service.ts` | Create | Funnel state machine |
+| `src/main/services/safety.service.ts` | Create | Input/output filtering |
+| `src/main/ai-engine.ts` | Modify | Add `confidenceScore`, safety checks |
+| `src/main/whatsapp.ts` | Modify | Integrate funnel, handover, learning |
+| `src/main/db.ts` | Modify | Add `leads`, `unknownQuestions` to schema |
+| `src/renderer/src/pages/Dashboard.tsx` | Modify | Show leads funnel visualization |
+
+---
+
+## ✅ Success Criteria
+
+### Code Quality
+- [ ] TypeScript compliant (no `any`)
+- [ ] Passes `npm run type-check`
+
+### Functionality
+- [ ] "Leads Captured" stat updates when contact reaches `product_shown`
+- [ ] Business Mode triggers handover on low confidence
+- [ ] Owner reply after handover gets embedded as training data
+- [ ] Safety layer blocks jailbreak attempts
+- [ ] Unknown Questions are logged and viewable
+
+---
+
+## 🔗 Dependencies
+
+**Depends on:**
+- `conversation-memory.service.ts` (embedding)
+- `owner-intercept.service.ts` (detecting owner messages)
+- Edition/Feature Flags (`features.ts`)
+
+**Used by:**
+- Dashboard UI (leads count)
+- Settings UI (unknown questions)
+- AI Engine (confidence, safety)
+
+---
+
+## 🚀 Getting Started
+
+1. Start with Phase 1: Define types and create `lead-tracker.service.ts`
+2. Test funnel advancement manually
+3. Move to Phase 2: Handover logic
+4. Phase 3: Owner learning loop
+5. Phase 4: Safety
+6. Phase 5: UI
+
+---
+
+*Generated by /spawn_task workflow*
