@@ -1,7 +1,23 @@
 import { embed } from 'ai'
-import { google } from '@ai-sdk/google'
-
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { validateLicense } from '@/lib/license.service'
+
+// --- Master Key Logic (Google) ---
+const GOOGLE_KEYS = [
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    process.env.GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY
+].filter(Boolean) as string[]
+
+let googleKeyIndex = 0
+function getGoogleKey() {
+    if (GOOGLE_KEYS.length === 0) {
+        throw new Error('No Google/Gemini Keys configured')
+    }
+    const key = GOOGLE_KEYS[googleKeyIndex]
+    googleKeyIndex = (googleKeyIndex + 1) % GOOGLE_KEYS.length
+    return key
+}
 
 export async function POST(req: Request) {
     try {
@@ -19,8 +35,9 @@ export async function POST(req: Request) {
         const { value } = await req.json()
         if (!value) return new Response('Missing value', { status: 400 })
 
-        // C. Generate Embedding (Using Server-Side Master Key)
-        // Note: process.env.GEMINI_API_KEY must be set in .env.local
+        // C. Generate Embedding
+        const google = createGoogleGenerativeAI({ apiKey: getGoogleKey() })
+
         const { embedding } = await embed({
             model: google.textEmbeddingModel('text-embedding-004'),
             value: value,

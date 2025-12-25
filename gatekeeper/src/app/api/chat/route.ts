@@ -1,26 +1,43 @@
 import { createGroq } from '@ai-sdk/groq'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { generateText } from 'ai'
-import { z } from 'zod'
+import { validateLicense } from '@/lib/license.service'
 
-// 1. Master Key Rotation Logic
-// In a real app, you might pull this from a database or Redis
-const MASTER_KEYS = [
+// --- Master Key Logic (Groq) ---
+const GROQ_KEYS = [
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_1,
     process.env.GROQ_API_KEY_2,
     process.env.GROQ_API_KEY_3,
 ].filter(Boolean) as string[]
 
-let keyIndex = 0
-
-function getNextMasterKey() {
-    if (MASTER_KEYS.length === 0) throw new Error('No Master Keys configured on Gatekeeper')
-    const key = MASTER_KEYS[keyIndex]
-    keyIndex = (keyIndex + 1) % MASTER_KEYS.length
+let groqKeyIndex = 0
+function getGroqKey() {
+    if (GROQ_KEYS.length === 0) throw new Error('No Groq Keys configured')
+    const key = GROQ_KEYS[groqKeyIndex]
+    groqKeyIndex = (groqKeyIndex + 1) % GROQ_KEYS.length
     return key
 }
 
-import { validateLicense } from '@/lib/license.service'
+// --- Master Key Logic (Google) ---
+const GOOGLE_KEYS = [
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    process.env.GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY
+].filter(Boolean) as string[]
+
+let googleKeyIndex = 0
+function getGoogleKey() {
+    if (GOOGLE_KEYS.length === 0) {
+        // Fallback to Groq logic if no specific Google keys, 
+        // but typically you need specific keys for Gemini.
+        // We'll throw specific error.
+        throw new Error('No Google/Gemini Keys configured')
+    }
+    const key = GOOGLE_KEYS[googleKeyIndex]
+    googleKeyIndex = (googleKeyIndex + 1) % GOOGLE_KEYS.length
+    return key
+}
 
 export async function POST(req: Request) {
     try {
@@ -38,23 +55,41 @@ export async function POST(req: Request) {
         }
 
         // B. Parse Body
+        // Expect 'messages' to be CoreMessage[] (compatible with Vercel AI SDK)
         const { messages, model } = await req.json()
+        const targetModel = model || 'llama-3.3-70b-versatile'
 
-        // C. Select Master Key (Rotation)
-        const masterKey = getNextMasterKey()
-        const groq = createGroq({ apiKey: masterKey })
+        let result;
 
-        // D. Proxy Request (Blocking/JSON for now, matching Electron App expectation)
-        const result = await generateText({
-            model: groq(model || 'llama-3.3-70b-versatile'),
-            messages: messages as any,
-        })
+        // C. Provider Routing
+        if (targetModel.toLowerCase().startsWith('gemini')) {
+            // GOOGLE / GEMINI ROUTE
+            const google = createGoogleGenerativeAI({ apiKey: getGoogleKey() })
 
-        // E. Return JSON
+            result = await generateText({
+                model: google(targetModel),
+                messages: messages as any, // CoreMessage support (text + images/files)
+            })
+
+        } else {
+            // GROQ ROUTE (Default)
+            const groq = createGroq({ apiKey: getGroqKey() })
+
+            result = await generateText({
+                model: groq(targetModel),
+                messages: messages as any,
+            })
+        }
+
+        // D. Return JSON
         return Response.json({ text: result.text })
 
     } catch (error) {
         console.error('Gatekeeper Error:', error)
-        return new Response('Internal Server Error', { status: 500 })
+        // Return 500 but also log details for debugging
+        return new Response(JSON.stringify({ error: 'Gatekeeper Gen Error', details: String(error) }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        })
     }
 }

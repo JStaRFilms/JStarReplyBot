@@ -707,11 +707,17 @@ async function initLanceDB() {
   }
 }
 async function getEmbedding(text) {
+  if (!text || text.trim().length === 0) {
+    log("WARN", "Skipping embedding for empty text");
+    return [];
+  }
   const { getSettings: getSettings2 } = await Promise.resolve().then(() => db$2);
   const settings = await getSettings2();
   if (settings.licenseStatus === "active" && settings.licenseKey) {
     try {
-      const GATEKEEPER_EMBED_URL = process.env.GATEKEEPER_URL?.replace("/chat", "/embed") || "http://127.0.0.1:3001/api/embed";
+      const baseUrl = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api";
+      const cleanBase = baseUrl.replace(/\/chat$/, "");
+      const GATEKEEPER_EMBED_URL = `${cleanBase}/embed`;
       const response = await fetch(GATEKEEPER_EMBED_URL, {
         method: "POST",
         headers: {
@@ -1240,10 +1246,10 @@ Analyze the user's message for:
 Respond with a helpful reply.`;
     let textResponse = "";
     if (licenseStatus === "active" && licenseKey) {
-      const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api/chat";
-      log("INFO", `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`);
+      log("INFO", "Using Gatekeeper (Licensed) via fetch");
+      const GATEKEEPER_URL = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api";
       try {
-        const response = await fetch(GATEKEEPER_API_URL, {
+        const response = await fetch(`${GATEKEEPER_URL}/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1251,7 +1257,6 @@ Respond with a helpful reply.`;
           },
           body: JSON.stringify({
             model: "moonshotai/kimi-k2-instruct-0905",
-            // Swapped to Kimi as Main
             messages: [
               { role: "system", content: fullSystemPrompt },
               { role: "user", content: userMessage }
@@ -1260,38 +1265,26 @@ Respond with a helpful reply.`;
         });
         if (!response.ok) {
           const errorText = await response.text();
-          if (response.status >= 500) {
-            throw new Error(`Gatekeeper Server Error: ${response.status}`);
-          }
-          if (response.status === 401 || response.status === 403) {
-            throw new Error(`Gatekeeper Auth Error: ${response.status} - ${errorText}`);
-          }
-          log("WARN", `Gatekeeper returned ${response.status}, falling back to local.`);
-          throw new Error(`Gatekeeper status ${response.status}`);
+          log("ERROR", `Gatekeeper request failed: ${response.status} - ${errorText}`);
+          throw new Error(`Gatekeeper Error: ${response.status}`);
         }
         const data = await response.json();
-        textResponse = data.text || data.choices?.[0]?.message?.content || "";
+        textResponse = data.text || "";
       } catch (gkError) {
-        log("WARN", `Gatekeeper failed (${gkError}), falling back to unique local generation`);
+        log("ERROR", `Gatekeeper call failed: ${gkError}. Falling back to local Groq.`);
         const result = await ai.generateText({
           model: getGroq()("llama-3.3-70b-versatile"),
-          // Swapped to Llama as Fallback
           system: fullSystemPrompt,
-          prompt: userMessage,
-          maxTokens: 300,
-          temperature: 0.7
+          messages: [{ role: "user", content: userMessage }]
         });
         textResponse = result.text;
       }
     } else {
-      log("INFO", "Using local Groq API (Dev/Trial Mode)");
+      log("INFO", "Using local Groq API (Dev/Trial/Fallback)");
       const result = await ai.generateText({
         model: getGroq()("llama-3.3-70b-versatile"),
-        // Swapped to Llama as Dev
         system: fullSystemPrompt,
-        prompt: userMessage,
-        maxTokens: 300,
-        temperature: 0.7
+        messages: [{ role: "user", content: userMessage }]
       });
       textResponse = result.text;
     }
@@ -1338,7 +1331,7 @@ function getGoogle() {
   if (!google) {
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
     if (!apiKey) {
-      log("WARN", "No GEMINI_API_KEY found. Multimodal features will fail.");
+      log("WARN", "No GEMINI_API_KEY found (Local Dev). Multimodal features may fail if not licensed.");
     }
     google = google$1.createGoogleGenerativeAI({ apiKey });
   }
@@ -1346,12 +1339,8 @@ function getGoogle() {
 }
 async function analyzeMedia(mode, base64Data, mimeType) {
   try {
-    const googleProvider = getGoogle();
-    if (!googleProvider) {
-      log("WARN", "Google AI provider not initialized");
-      return null;
-    }
-    const model = googleProvider("gemini-2.5-flash-lite");
+    const settings = await getSettings();
+    const { licenseKey, licenseStatus } = settings;
     const cleanMime = (mimeType.split(";")[0] || mimeType).trim();
     let prompt = "";
     if (mode === "audio") {
@@ -1375,16 +1364,56 @@ async function analyzeMedia(mode, base64Data, mimeType) {
       });
     }
     log("DEBUG", `[Multimodal] Sending payload: ${cleanMime} (${base64Data.length} chars)`);
-    const result = await ai.generateText({
-      model,
-      messages: [
-        {
-          role: "user",
-          content
+    let output = "";
+    if (licenseStatus === "active" && licenseKey) {
+      log("INFO", "[Multimodal] Using Gatekeeper (Licensed) via fetch");
+      const GATEKEEPER_URL = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api";
+      try {
+        const response = await fetch(`${GATEKEEPER_URL}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${licenseKey}`
+          },
+          body: JSON.stringify({
+            model: "gemini-2.5-flash-lite",
+            messages: [
+              { role: "user", content }
+            ]
+          })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          log("ERROR", `[Multimodal] Gatekeeper request failed: ${response.status} - ${errorText}`);
+          throw new Error(`Gatekeeper Error: ${response.status}`);
         }
-      ]
-    });
-    const output = result.text;
+        const data = await response.json();
+        output = data.text || "";
+      } catch (gkError) {
+        log("ERROR", `[Multimodal] Gatekeeper call failed: ${gkError}. Falling back to local Google.`);
+        const googleProvider = getGoogle();
+        if (!googleProvider) {
+          log("WARN", "Google AI provider not initialized for local fallback");
+          return null;
+        }
+        const result = await ai.generateText({
+          model: googleProvider("gemini-2.5-flash-lite"),
+          messages: [{ role: "user", content }]
+        });
+        output = result.text;
+      }
+    } else {
+      const googleProvider = getGoogle();
+      if (!googleProvider) {
+        log("WARN", "Google AI provider not initialized for local fallback");
+        return null;
+      }
+      const result = await ai.generateText({
+        model: googleProvider("gemini-2.5-flash-lite"),
+        messages: [{ role: "user", content }]
+      });
+      output = result.text;
+    }
     log("AI", `[Multimodal] ${mode} analysis: ${output.substring(0, 50)}...`);
     return output;
   } catch (error) {

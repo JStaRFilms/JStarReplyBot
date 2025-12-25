@@ -26,9 +26,6 @@ interface AIReplyResult {
     productIntent?: string
 }
 
-// Removed top-level constant to prevent early access before dotenv
-// const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
-
 export async function generateAIReply(
     userMessage: string,
     systemPrompt: string,
@@ -96,22 +93,22 @@ Analyze the user's message for:
 
 Respond with a helpful reply.`
 
-        // BRANCH: Licensing Gatekeeper vs Local Dev
         let textResponse = ''
 
+        // BRANCH: Licensed -> Gatekeeper via fetch | Unlicensed -> Local Groq
         if (licenseStatus === 'active' && licenseKey) {
-            const GATEKEEPER_API_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api/chat'
-            log('INFO', `Routing request via Gatekeeper: ${GATEKEEPER_API_URL}`)
+            log('INFO', 'Using Gatekeeper (Licensed) via fetch')
+            const GATEKEEPER_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api'
 
             try {
-                const response = await fetch(GATEKEEPER_API_URL, {
+                const response = await fetch(`${GATEKEEPER_URL}/chat`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${licenseKey}`
                     },
                     body: JSON.stringify({
-                        model: 'moonshotai/kimi-k2-instruct-0905', // Swapped to Kimi as Main
+                        model: 'moonshotai/kimi-k2-instruct-0905',
                         messages: [
                             { role: 'system', content: fullSystemPrompt },
                             { role: 'user', content: userMessage }
@@ -121,43 +118,30 @@ Respond with a helpful reply.`
 
                 if (!response.ok) {
                     const errorText = await response.text()
-                    // If server error (5xx), throw to trigger fallback
-                    if (response.status >= 500) {
-                        throw new Error(`Gatekeeper Server Error: ${response.status}`)
-                    }
-                    // If auth error (401/403), probably invalid key, stop here
-                    if (response.status === 401 || response.status === 403) {
-                        throw new Error(`Gatekeeper Auth Error: ${response.status} - ${errorText}`)
-                    }
-                    log('WARN', `Gatekeeper returned ${response.status}, falling back to local.`)
-                    throw new Error(`Gatekeeper status ${response.status}`)
+                    log('ERROR', `Gatekeeper request failed: ${response.status} - ${errorText}`)
+                    throw new Error(`Gatekeeper Error: ${response.status}`)
                 }
 
                 const data = await response.json()
-                textResponse = data.text || data.choices?.[0]?.message?.content || ''
+                textResponse = data.text || ''
 
             } catch (gkError) {
-                log('WARN', `Gatekeeper failed (${gkError}), falling back to unique local generation`)
-                // Fallback Logic (duplicated from else block)
+                log('ERROR', `Gatekeeper call failed: ${gkError}. Falling back to local Groq.`)
+                // Fallback to local Groq on Gatekeeper failure
                 const result = await generateText({
-                    model: getGroq()('llama-3.3-70b-versatile') as any, // Swapped to Llama as Fallback
+                    model: getGroq()('llama-3.3-70b-versatile') as any,
                     system: fullSystemPrompt,
-                    prompt: userMessage,
-                    maxTokens: 300,
-                    temperature: 0.7
+                    messages: [{ role: 'user' as const, content: userMessage }]
                 })
                 textResponse = result.text
             }
 
         } else {
-            // Fallback to Local Env Key (Dev Mode)
-            log('INFO', 'Using local Groq API (Dev/Trial Mode)')
+            log('INFO', 'Using local Groq API (Dev/Trial/Fallback)')
             const result = await generateText({
-                model: getGroq()('llama-3.3-70b-versatile') as any, // Swapped to Llama as Dev
+                model: getGroq()('llama-3.3-70b-versatile') as any,
                 system: fullSystemPrompt,
-                prompt: userMessage,
-                maxTokens: 300,
-                temperature: 0.7
+                messages: [{ role: 'user' as const, content: userMessage }]
             })
             textResponse = result.text
         }

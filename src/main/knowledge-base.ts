@@ -66,13 +66,22 @@ async function initLanceDB(): Promise<void> {
 }
 
 async function getEmbedding(text: string): Promise<number[]> {
+    // Guard against empty text (causes 400 errors on Gatekeeper)
+    if (!text || text.trim().length === 0) {
+        log('WARN', 'Skipping embedding for empty text')
+        return []
+    }
+
     const { getSettings } = await import('./db')
     const settings = await getSettings()
 
     // 1. Try Gatekeeper (Proxy) if Licensed
     if (settings.licenseStatus === 'active' && settings.licenseKey) {
         try {
-            const GATEKEEPER_EMBED_URL = process.env.GATEKEEPER_URL?.replace('/chat', '/embed') || 'http://127.0.0.1:3001/api/embed'
+            const baseUrl = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3000/api'
+            // Ensure we don't double-up if legacy env var is used
+            const cleanBase = baseUrl.replace(/\/chat$/, '')
+            const GATEKEEPER_EMBED_URL = `${cleanBase}/embed`
             const response = await fetch(GATEKEEPER_EMBED_URL, {
                 method: 'POST',
                 headers: {
