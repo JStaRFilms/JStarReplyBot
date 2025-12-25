@@ -22,11 +22,15 @@ Since user's machines are untrusted environments, we cannot embed your master AP
         *   Implements **Failover**: If Key A hits a rate limit, instantly retry with Key B.
     *   **Monitoring Layer:** Logs the request (User ID, Token Count, Timestamp).
 
-### 2. Usage Monitoring
+### 2. Usage Monitoring & Live Dashboard
 We track usage at the Gatekeeper level.
 *   **Metrics:** Daily Active Users (DAU), Tokens Consumed per User, Error Rates.
 *   **Enforcement:** If a user exceeds their tier limits (e.g., 1000 messages/month), the Gatekeeper rejects the request with `402 Payment Required`.
-*   **Dashboard:** You get a UI to see "Who is online?" and "Who is costing me the most money?".
+*   **Live Dashboard (Implemented):**
+    *   **Real-time Feed:** In-memory logging of the last 50 requests (type, latency, status).
+    *   **Stats:** Live Success Rate %, Total Requests, and Failure counters.
+    *   **Privacy:** Logs are ephemeral (reset on restart) and anonymized (no full message content).
+    *   **Visuals:** Premium "Cyber-Grid" aesthetic with glassmorphism UI.
 
 ### 3. API Key Management (The "Rotation")
 *   **Database:** You store an array of keys: `[{ provider: 'groq', key: 'gsk_1...', status: 'active' }, { provider: 'gemini', key: 'AIza...', status: 'active' }]`.

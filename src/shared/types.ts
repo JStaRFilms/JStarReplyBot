@@ -47,15 +47,44 @@ export const SettingsSchema = z.object({
         ttlDays: z.number().default(30) // 0 = infinite
     }).default({}),
 
-    // Owner Interception (Collaborative Mode)
-    // Detects when YOU (the owner) message a customer and adjusts bot behavior accordingly
     ownerIntercept: z.object({
         enabled: z.boolean().default(true),
         pauseDurationMs: z.number().default(15000), // Extra pause when owner types (15s)
         doubleTextEnabled: z.boolean().default(true) // Allow bot to follow up after owner
-    }).default({})
+    }).default({}),
+
+    // Application Edition (Personal vs Business)
+    edition: z.enum(['personal', 'business', 'dev']).default('personal')
 })
 export type Settings = z.infer<typeof SettingsSchema>
+
+// ============ Style Profile ============
+export type EmojiLevel = 'none' | 'light' | 'moderate' | 'heavy'
+export type SentenceStyle = 'short' | 'medium' | 'long'
+
+export interface StylePatterns {
+    emojiUsage: EmojiLevel
+    sentenceStyle: SentenceStyle
+    endsWithPeriod: boolean
+}
+
+export interface GlobalStyle {
+    vocabulary: string[]
+    bannedPhrases: string[]
+    patterns: StylePatterns
+    sampleMessages: string[]
+}
+
+export interface PerChatStyle {
+    relationship?: string
+    styleOverrides: Partial<GlobalStyle>
+    sampleMessages: string[]
+}
+
+export interface StyleProfile {
+    global: GlobalStyle
+    perChat: Record<string, PerChatStyle>
+}
 
 // ============ Draft Message ============
 export interface DraftMessage {
@@ -170,7 +199,12 @@ export const IPC_CHANNELS = {
 
     // Smart Queue
     ON_QUEUE_UPDATE: 'queue:on-update', // Active buffers list changed
-    ON_QUEUE_PROCESSED: 'queue:on-processed' // A batch was successfully aggregated
+    ON_QUEUE_PROCESSED: 'queue:on-processed', // A batch was successfully aggregated
+
+    // Style Profile
+    GET_STYLE_PROFILE: 'style:get',
+    UPDATE_STYLE_PROFILE: 'style:update',
+    DELETE_STYLE_ITEM: 'style:delete-item'
 } as const
 
 // ============ Queue Types ============

@@ -45,15 +45,15 @@ zod.z.object({
     ttlDays: zod.z.number().default(30)
     // 0 = infinite
   }).default({}),
-  // Owner Interception (Collaborative Mode)
-  // Detects when YOU (the owner) message a customer and adjusts bot behavior accordingly
   ownerIntercept: zod.z.object({
     enabled: zod.z.boolean().default(true),
     pauseDurationMs: zod.z.number().default(15e3),
     // Extra pause when owner types (15s)
     doubleTextEnabled: zod.z.boolean().default(true)
     // Allow bot to follow up after owner
-  }).default({})
+  }).default({}),
+  // Application Edition (Personal vs Business)
+  edition: zod.z.enum(["personal", "business", "dev"]).default("personal")
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -101,8 +101,12 @@ const IPC_CHANNELS = {
   // Smart Queue
   ON_QUEUE_UPDATE: "queue:on-update",
   // Active buffers list changed
-  ON_QUEUE_PROCESSED: "queue:on-processed"
+  ON_QUEUE_PROCESSED: "queue:on-processed",
   // A batch was successfully aggregated
+  // Style Profile
+  GET_STYLE_PROFILE: "style:get",
+  UPDATE_STYLE_PROFILE: "style:update",
+  DELETE_STYLE_ITEM: "style:delete-item"
 };
 const electronAPI = {
   // Bot control
@@ -185,6 +189,10 @@ const electronAPI = {
     const handler = (_, event) => callback(event);
     electron.ipcRenderer.on(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler);
     return () => electron.ipcRenderer.removeListener(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler);
-  }
+  },
+  // Style Profile
+  getStyleProfile: () => electron.ipcRenderer.invoke(IPC_CHANNELS.GET_STYLE_PROFILE),
+  updateStyleProfile: (updates) => electron.ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STYLE_PROFILE, updates),
+  deleteStyleItem: (type, value) => electron.ipcRenderer.invoke(IPC_CHANNELS.DELETE_STYLE_ITEM, { type, value })
 };
 electron.contextBridge.exposeInMainWorld("electron", electronAPI);

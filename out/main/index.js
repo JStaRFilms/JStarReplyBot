@@ -341,15 +341,15 @@ const SettingsSchema = zod.z.object({
     ttlDays: zod.z.number().default(30)
     // 0 = infinite
   }).default({}),
-  // Owner Interception (Collaborative Mode)
-  // Detects when YOU (the owner) message a customer and adjusts bot behavior accordingly
   ownerIntercept: zod.z.object({
     enabled: zod.z.boolean().default(true),
     pauseDurationMs: zod.z.number().default(15e3),
     // Extra pause when owner types (15s)
     doubleTextEnabled: zod.z.boolean().default(true)
     // Allow bot to follow up after owner
-  }).default({})
+  }).default({}),
+  // Application Edition (Personal vs Business)
+  edition: zod.z.enum(["personal", "business", "dev"]).default("personal")
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -397,8 +397,12 @@ const IPC_CHANNELS = {
   // Smart Queue
   ON_QUEUE_UPDATE: "queue:on-update",
   // Active buffers list changed
-  ON_QUEUE_PROCESSED: "queue:on-processed"
+  ON_QUEUE_PROCESSED: "queue:on-processed",
   // A batch was successfully aggregated
+  // Style Profile
+  GET_STYLE_PROFILE: "style:get",
+  UPDATE_STYLE_PROFILE: "style:update",
+  DELETE_STYLE_ITEM: "style:delete-item"
 };
 const SEED_PROFILE = {
   name: "James's Bistro & Motors",
@@ -486,7 +490,20 @@ const defaultData = {
   documents: [],
   catalog: [],
   drafts: [],
-  messageContexts: {}
+  messageContexts: {},
+  styleProfile: {
+    global: {
+      vocabulary: [],
+      bannedPhrases: [],
+      patterns: {
+        emojiUsage: "moderate",
+        sentenceStyle: "medium",
+        endsWithPeriod: false
+      },
+      sampleMessages: []
+    },
+    perChat: {}
+  }
 };
 let db$2 = null;
 async function initDatabase() {
@@ -636,6 +653,18 @@ async function getMessageContext(messageId) {
   await db2.read();
   return db2.data.messageContexts?.[messageId];
 }
+async function getStyleProfile() {
+  const db2 = getDb();
+  await db2.read();
+  return db2.data.styleProfile;
+}
+async function saveStyleProfile(profile) {
+  const db2 = getDb();
+  await db2.read();
+  db2.data.styleProfile = { ...db2.data.styleProfile, ...profile };
+  await db2.write();
+  return db2.data.styleProfile;
+}
 const db$3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   addCatalogItem,
@@ -649,12 +678,14 @@ const db$3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty
   getMessageContext,
   getSettings,
   getStats,
+  getStyleProfile,
   incrementStats,
   initDatabase,
   removeDocument,
   removeDraft,
   saveMessageContext,
   saveSettings,
+  saveStyleProfile,
   seedDatabase,
   updateCatalogItem,
   updateDraft
@@ -964,6 +995,111 @@ async function getLicenseStatus() {
   const settings = await getSettings();
   return settings.licenseStatus === "active";
 }
+class StyleProfileService {
+  /**
+   * Get the complete style profile
+   */
+  async getProfile() {
+    return await getStyleProfile();
+  }
+  /**
+   * Get style for a specific chat context.
+   * Merges global style with per-chat overrides.
+   */
+  async getStyleForChat(chatId) {
+    const profile = await getStyleProfile();
+    const chatStyle = profile.perChat[chatId];
+    if (!chatStyle) {
+      return profile.global;
+    }
+    return {
+      ...profile.global,
+      ...chatStyle.styleOverrides,
+      // Merge vocabulary lists distinctively
+      vocabulary: [.../* @__PURE__ */ new Set([
+        ...profile.global.vocabulary || [],
+        ...chatStyle.styleOverrides.vocabulary || []
+      ])],
+      bannedPhrases: [.../* @__PURE__ */ new Set([
+        ...profile.global.bannedPhrases || [],
+        ...chatStyle.styleOverrides.bannedPhrases || []
+      ])],
+      // Use specific sample messages if available, otherwise fall back to global
+      sampleMessages: chatStyle.sampleMessages && chatStyle.sampleMessages.length > 0 ? chatStyle.sampleMessages : profile.global.sampleMessages
+    };
+  }
+  /**
+   * Update global style patterns derived from analysis
+   */
+  async updateGlobalStyle(patterns) {
+    const profile = await getStyleProfile();
+    const updatedGlobal = {
+      ...profile.global,
+      ...patterns,
+      // Deep merge patterns object
+      patterns: {
+        ...profile.global.patterns,
+        ...patterns.patterns || {}
+      }
+    };
+    await saveStyleProfile({ global: updatedGlobal });
+    log("INFO", "Updated global style profile");
+  }
+  /**
+   * Set a per-chat override
+   */
+  async setChatOverride(chatId, override) {
+    const profile = await getStyleProfile();
+    const currentChat = profile.perChat[chatId] || {
+      styleOverrides: {},
+      sampleMessages: []
+    };
+    const updatedChat = {
+      ...currentChat,
+      ...override,
+      styleOverrides: {
+        ...currentChat.styleOverrides,
+        ...override.styleOverrides || {}
+      }
+    };
+    await saveStyleProfile({
+      perChat: {
+        ...profile.perChat,
+        [chatId]: updatedChat
+      }
+    });
+    log("INFO", `Updated style override for chat ${chatId}`);
+  }
+  /**
+   * Add a learned vocabulary item
+   */
+  async addVocabulary(word) {
+    const profile = await getStyleProfile();
+    if (!profile.global.vocabulary.includes(word)) {
+      await this.updateGlobalStyle({
+        vocabulary: [...profile.global.vocabulary, word]
+      });
+    }
+  }
+  /**
+   * Remove a vocabulary item (correction)
+   */
+  async removeVocabulary(word) {
+    const profile = await getStyleProfile();
+    await this.updateGlobalStyle({
+      vocabulary: profile.global.vocabulary.filter((w) => w !== word)
+    });
+  }
+  /**
+   * Add a sample message manually or from extraction
+   */
+  async addGlobalSample(message) {
+    const profile = await getStyleProfile();
+    const newSamples = [message, ...profile.global.sampleMessages].slice(0, 20);
+    await this.updateGlobalStyle({ sampleMessages: newSamples });
+  }
+}
+const styleProfileService = new StyleProfileService();
 function registerIpcHandlers(whatsappClient) {
   electron.ipcMain.handle(IPC_CHANNELS.START_BOT, async () => {
     try {
@@ -1167,6 +1303,34 @@ function registerIpcHandlers(whatsappClient) {
       return { success: false, error: String(error) };
     }
   });
+  electron.ipcMain.handle(IPC_CHANNELS.GET_STYLE_PROFILE, async () => {
+    try {
+      const profile = await styleProfileService.getProfile();
+      return { success: true, data: profile };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.UPDATE_STYLE_PROFILE, async (_, updates) => {
+    try {
+      if (updates.global) {
+        await styleProfileService.updateGlobalStyle(updates.global);
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.DELETE_STYLE_ITEM, async (_, { type, value }) => {
+    try {
+      if (type === "vocabulary") {
+        await styleProfileService.removeVocabulary(value);
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
   electron.ipcMain.handle(IPC_CHANNELS.GET_STATS, async () => {
     try {
       const stats = await getStats();
@@ -1197,7 +1361,7 @@ function getGroq() {
   }
   return groq;
 }
-async function generateAIReply(userMessage, systemPrompt, history = [], multimodalContext) {
+async function generateAIReply(userMessage, systemPrompt, history = [], multimodalContext, styleContext) {
   try {
     const context = await retrieveContext(userMessage);
     const settings = await getSettings();
@@ -1241,12 +1405,29 @@ RESPOND BASED ON THE [TYPE] AND [INTENT]:
 - SELFIE: Compliment or engage naturally.
 --- END MEDIA CONTEXT ---
 ` : "";
+    const styleBlock = styleContext ? `
+--- STYLE INSTRUCTIONS (OWNER VOICE) ---
+You are replying as "JStar" but attempting to mimic the owner's texting style.
+Vocabulary: Use these words/phrases if natural: ${styleContext.vocabulary.join(", ")}
+Sentence Style: ${styleContext.patterns.sentenceStyle} length sentences.
+Emoji Usage: ${styleContext.patterns.emojiUsage === "none" ? "NO emojis" : `Use ${styleContext.patterns.emojiUsage} emojis`}.
+Ends with Period: ${styleContext.patterns.endsWithPeriod ? "YES" : "NO (drop final period)"}.
+
+Banned Phrases: ${styleContext.bannedPhrases.join(", ")}
+
+Sample Messages (Mimic this vibe):
+${styleContext.sampleMessages.map((m) => `"${m}"`).join("\n")}
+--- END STYLE INSTRUCTIONS ---
+` : "";
     const fullSystemPrompt = `${systemPrompt}
 ${profileBlock}
 ${catalogBlock}
 ${contextBlock}
 ${historyBlock}
+${contextBlock}
+${historyBlock}
 ${multimodalBlock}
+${styleBlock}
 
 IMPORTANT INSTRUCTIONS:
 1. Your name is ${botName}. You are NOT the business owner, you work for them.
@@ -1787,6 +1968,7 @@ class OwnerInterceptService {
       timestamp: Date.now(),
       pendingCustomerMessages: existing?.pendingCustomerMessages || []
     });
+    embedMessage(chatId, "owner", msg.body).catch((err) => log("ERROR", `[OwnerIntercept] Failed to embed owner message: ${err}`));
   }
   /**
    * Called when a customer message is queued. We track it here in case
@@ -1861,6 +2043,42 @@ class OwnerInterceptService {
   }
 }
 const ownerInterceptService = new OwnerInterceptService();
+const FEATURE_DEFAULTS = {
+  personal: {
+    smartQueue: { enabled: true, maxBatchSize: 10 },
+    ownerInterception: true,
+    memory: { enabled: true },
+    styleLearning: true,
+    multimodal: true,
+    licensing: { enabled: false },
+    debugTools: true,
+    canSwitchEdition: true
+  },
+  business: {
+    smartQueue: { enabled: true, maxBatchSize: 5 },
+    // More conservative
+    ownerInterception: true,
+    memory: { enabled: false },
+    // Simplification for business
+    styleLearning: false,
+    // Professional tone preferred
+    multimodal: true,
+    licensing: { enabled: true },
+    debugTools: false,
+    canSwitchEdition: false
+    // Locked
+  },
+  dev: {
+    smartQueue: { enabled: true, maxBatchSize: 100 },
+    ownerInterception: true,
+    memory: { enabled: true },
+    styleLearning: true,
+    multimodal: true,
+    licensing: { enabled: true, serverUrl: "http://localhost:3000" },
+    debugTools: true,
+    canSwitchEdition: true
+  }
+};
 class WhatsAppClient {
   client = null;
   status = "disconnected";
@@ -1957,6 +2175,8 @@ class WhatsAppClient {
   async handleOwnerMessage(msg) {
     try {
       const settings = await getSettings();
+      const features = FEATURE_DEFAULTS[settings.edition || "personal"];
+      if (!features.ownerInterception) return;
       if (settings.ownerIntercept?.enabled === false) return;
       const chatId = msg.to;
       log("INFO", `[OwnerIntercept] Owner sent message to ${chatId}: "${msg.body.substring(0, 30)}..."`);
@@ -2056,6 +2276,7 @@ class WhatsAppClient {
     }
   }
   async processAggregatedMessages(messages, settings, contactName) {
+    const features = FEATURE_DEFAULTS[settings.edition || "personal"];
     if (messages.length === 0) return { status: "skipped" };
     const lastMsg = messages[messages.length - 1];
     if (!lastMsg) return { status: "skipped" };
@@ -2071,7 +2292,7 @@ class WhatsAppClient {
       const combinedQuery = messages.map((m) => m.body).join("\n");
       const combinedMultimodal = messages.map((m) => m._multimodalContext).filter(Boolean).join("\n\n");
       log("INFO", `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`);
-      if (settings.conversationMemory?.enabled !== false) {
+      if (features.memory.enabled && settings.conversationMemory?.enabled !== false) {
         try {
           await embedMessage(contactNumber, "user", combinedQuery, combinedMultimodal || void 0);
         } catch (embedError) {
@@ -2080,7 +2301,7 @@ class WhatsAppClient {
       }
       let history = [];
       try {
-        if (settings.conversationMemory?.enabled !== false) {
+        if (features.memory.enabled && settings.conversationMemory?.enabled !== false) {
           const semanticMemories = await recallMemory(contactNumber, combinedQuery, 5);
           const recentMemories = await getRecentHistory(contactNumber, 5);
           const seenTexts = /* @__PURE__ */ new Set();
@@ -2146,10 +2367,14 @@ If in doubt, choose [NO_REPLY_NEEDED].
 
 `;
       }
+      let styleContext;
+      if (features.styleLearning) {
+        styleContext = await styleProfileService.getStyleForChat(contactNumber);
+      }
       let reply;
       try {
         const effectivePrompt = collaborativePrompt + settings.systemPrompt;
-        reply = await generateAIReply(combinedQuery, effectivePrompt, history, combinedMultimodal);
+        reply = await generateAIReply(combinedQuery, effectivePrompt, history, combinedMultimodal, styleContext);
       } catch (aiError) {
         const errorStr = String(aiError);
         log("ERROR", `AI Gen Failed: ${errorStr}`);
@@ -2205,7 +2430,10 @@ If in doubt, choose [NO_REPLY_NEEDED].
         }
       }
       try {
-        await this.sendReplyWithSafeMode(lastMsg, reply.text, settings, isCollaborativeMode ? replyMode : "quote");
+        const wasSent = await this.sendReplyWithSafeMode(lastMsg, reply.text, settings, isCollaborativeMode ? replyMode : "quote");
+        if (!wasSent) {
+          return { status: "skipped", error: "Owner intercepted during send" };
+        }
         const now = /* @__PURE__ */ new Date();
         const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
         this.broadcastToRenderer(IPC_CHANNELS.ON_ACTIVITY, {
@@ -2216,7 +2444,7 @@ If in doubt, choose [NO_REPLY_NEEDED].
           response: reply.text,
           timestamp: Date.now()
         });
-        if (settings.conversationMemory?.enabled !== false) {
+        if (features.memory.enabled && settings.conversationMemory?.enabled !== false) {
           try {
             await embedMessage(contactNumber, "assistant", reply.text);
           } catch (embedError) {
@@ -2277,13 +2505,13 @@ If in doubt, choose [NO_REPLY_NEEDED].
         await this.sleep(delay);
         if (settings.ownerIntercept?.enabled !== false && ownerInterceptService.hasOwnerActivity(chatId)) {
           log("INFO", `[OwnerIntercept] Owner messaged during safe mode delay - aborting send`);
-          return;
+          return false;
         }
         await chat.sendStateTyping();
         await this.sleep(Math.min(messageText.length * 30, 3e3));
         if (settings.ownerIntercept?.enabled !== false && ownerInterceptService.hasOwnerActivity(chatId)) {
           log("INFO", `[OwnerIntercept] Owner messaged during typing simulation - aborting send`);
-          return;
+          return false;
         }
       }
       if (i === 0 && replyMode === "quote") {
@@ -2302,6 +2530,7 @@ If in doubt, choose [NO_REPLY_NEEDED].
     } catch (statsError) {
       log("ERROR", `Failed to update stats: ${statsError}`);
     }
+    return true;
   }
   splitMessage(text) {
     const MAX_BUBBLE_LENGTH = 500;

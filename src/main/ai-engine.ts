@@ -3,6 +3,7 @@ import { generateText } from 'ai'
 import { log } from './logger'
 import { retrieveContext } from './knowledge-base'
 import { getSettings, getCatalog } from './db'
+import { GlobalStyle } from '../shared/types'
 
 // Lazy-initialized after dotenv loads
 let groq: ReturnType<typeof createGroq> | null = null
@@ -30,7 +31,8 @@ export async function generateAIReply(
     userMessage: string,
     systemPrompt: string,
     history: { role: 'user' | 'model'; content: string }[] = [],
-    multimodalContext?: string
+    multimodalContext?: string,
+    styleContext?: GlobalStyle
 ): Promise<AIReplyResult | null> {
     try {
         // Retrieve relevant context from knowledge base (RAG)
@@ -67,12 +69,32 @@ ${profile.description}`
             ? `\n\n--- MEDIA CONTEXT ---\nThe user shared media. Here is the analysis:\n${multimodalContext}\n\nRESPOND BASED ON THE [TYPE] AND [INTENT]:\n- MEME: React to the humor/mood, don't describe the image. Just vibe with it.\n- PRODUCT: Answer questions about the product naturally.\n- SCREENSHOT: Respond to the content shown.\n- SELFIE: Compliment or engage naturally.\n--- END MEDIA CONTEXT ---\n`
             : ''
 
+        const styleBlock = styleContext
+            ? `
+--- STYLE INSTRUCTIONS (OWNER VOICE) ---
+You are replying as "JStar" but attempting to mimic the owner's texting style.
+Vocabulary: Use these words/phrases if natural: ${styleContext.vocabulary.join(', ')}
+Sentence Style: ${styleContext.patterns.sentenceStyle} length sentences.
+Emoji Usage: ${styleContext.patterns.emojiUsage === 'none' ? 'NO emojis' : `Use ${styleContext.patterns.emojiUsage} emojis`}.
+Ends with Period: ${styleContext.patterns.endsWithPeriod ? 'YES' : 'NO (drop final period)'}.
+
+Banned Phrases: ${styleContext.bannedPhrases.join(', ')}
+
+Sample Messages (Mimic this vibe):
+${styleContext.sampleMessages.map(m => `"${m}"`).join('\n')}
+--- END STYLE INSTRUCTIONS ---
+`
+            : ''
+
         const fullSystemPrompt = `${systemPrompt}
 ${profileBlock}
 ${catalogBlock}
 ${contextBlock}
 ${historyBlock}
+${contextBlock}
+${historyBlock}
 ${multimodalBlock}
+${styleBlock}
 
 IMPORTANT INSTRUCTIONS:
 1. Your name is ${botName}. You are NOT the business owner, you work for them.

@@ -21,7 +21,7 @@ const tableCache: Map<string, any> = new Map()
 export interface ConversationMemoryRecord {
     id: string
     contactId: string
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'owner'
     text: string
     mediaContext: string  // Empty string if no media (LanceDB can't handle null)
     vector: number[]
@@ -30,7 +30,7 @@ export interface ConversationMemoryRecord {
 
 export interface RecalledMemory {
     text: string
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'owner'
     mediaContext: string
     timestamp: number
     relevance: number
@@ -142,7 +142,7 @@ async function getEmbedding(text: string): Promise<number[]> {
  */
 export async function embedMessage(
     contactId: string,
-    role: 'user' | 'assistant',
+    role: 'user' | 'assistant' | 'owner',
     content: string,
     mediaContext?: string
 ): Promise<boolean> {

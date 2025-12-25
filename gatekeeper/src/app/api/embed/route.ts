@@ -1,6 +1,7 @@
 import { embed } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { validateLicense } from '@/lib/license.service'
+import { logRequest } from '@/lib/logger'
 
 // --- Master Key Logic (Google) ---
 const GOOGLE_KEYS = [
@@ -20,20 +21,41 @@ function getGoogleKey() {
 }
 
 export async function POST(req: Request) {
+    const startTime = performance.now()
     try {
         // A. Auth Check
         const authHeader = req.headers.get('Authorization')
         if (!authHeader?.startsWith('Bearer ')) {
+            logRequest({
+                type: 'embed',
+                status: 'fail',
+                latencyMs: Math.round(performance.now() - startTime),
+                error: 'Unauthorized'
+            })
             return new Response('Unauthorized', { status: 401 })
         }
         const licenseKey = authHeader.split(' ')[1]
         if (!(await validateLicense(licenseKey))) {
+            logRequest({
+                type: 'embed',
+                status: 'fail',
+                latencyMs: Math.round(performance.now() - startTime),
+                error: 'Payment Required'
+            })
             return new Response('Payment Required', { status: 402 })
         }
 
         // B. Parse Body
         const { value } = await req.json()
-        if (!value) return new Response('Missing value', { status: 400 })
+        if (!value) {
+            logRequest({
+                type: 'embed',
+                status: 'fail',
+                latencyMs: Math.round(performance.now() - startTime),
+                error: 'Missing value'
+            })
+            return new Response('Missing value', { status: 400 })
+        }
 
         // C. Generate Embedding
         const google = createGoogleGenerativeAI({ apiKey: getGoogleKey() })
@@ -43,11 +65,25 @@ export async function POST(req: Request) {
             value: value,
         })
 
+        // Log Success
+        logRequest({
+            type: 'embed',
+            status: 'ok',
+            latencyMs: Math.round(performance.now() - startTime)
+        })
+
         // D. Return JSON
         return Response.json({ embedding })
 
     } catch (error) {
         console.error('Embedding Error:', error)
+        logRequest({
+            type: 'embed',
+            status: 'fail',
+            latencyMs: Math.round(performance.now() - startTime),
+            error: String(error)
+        })
         return new Response('Internal Server Error', { status: 500 })
     }
 }
+

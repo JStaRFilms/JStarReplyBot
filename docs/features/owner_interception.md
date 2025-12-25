@@ -60,3 +60,20 @@ The AI receives a modified prompt in collaborative mode:
 2. **Owner sends multiple messages**: Each message resets the pause timer.
 3. **TTL expiry**: Owner context expires after 5 minutes if not used.
 4. **Stale entries**: Cleanup runs every 60 seconds.
+5. **New conversation clears stale context**: When a new customer message starts a fresh queue, old owner context is cleared.
+
+---
+
+## Hotfixes / Changelog
+
+### Hotfix 2025-12-25: Owner Message Detection
+- **Problem:** `message` event only fires for incoming messages, not outgoing (owner) messages.
+- **Solution:** Added `message_create` event listener + dedicated `handleOwnerMessage()` method.
+
+### Hotfix 2025-12-25: Stale Owner Context Applied to New Queries
+- **Problem:** Owner message from previous conversation was being applied to new customer questions.
+- **Solution:** Clear owner context when new queue buffer starts (no existing pending buffer).
+
+### Hotfix 2025-12-25: Embed on Abort Bug
+- **Problem:** Bot embedded reply in memory even when send was aborted.
+- **Solution:** Changed `sendReplyWithSafeMode()` to return `boolean` (true=sent, false=aborted). Caller skips embed on abort.

@@ -87,7 +87,8 @@ const defaultSettings: Settings = {
         enabled: true,
         pauseDurationMs: 15000,
         doubleTextEnabled: true
-    }
+    },
+    edition: 'personal' // Default edition
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({

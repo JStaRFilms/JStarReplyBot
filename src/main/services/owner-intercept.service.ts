@@ -8,6 +8,7 @@
 
 import { Message } from 'whatsapp-web.js'
 import { log } from '../logger'
+import { embedMessage } from './conversation-memory.service'
 
 interface OwnerActivity {
     ownerMessage: Message
@@ -43,6 +44,11 @@ export class OwnerInterceptService {
             timestamp: Date.now(),
             pendingCustomerMessages: existing?.pendingCustomerMessages || []
         })
+
+        // Style Learning: Persist owner message to memory
+        // This allows us to learn from how the owner actually replies
+        embedMessage(chatId, 'owner', msg.body)
+            .catch(err => log('ERROR', `[OwnerIntercept] Failed to embed owner message: ${err}`))
     }
 
     /**

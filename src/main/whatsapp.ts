@@ -10,6 +10,8 @@ import { analyzeMedia } from './services/multimodal.service'
 import { SmartQueueService } from './services/queue.service'
 import { embedMessage, recallMemory, getRecentHistory } from './services/conversation-memory.service'
 import { ownerInterceptService } from './services/owner-intercept.service'
+import { styleProfileService } from './services/style-profile.service'
+import { FEATURE_DEFAULTS } from '../shared/config/features'
 import type { ConnectionStatus, DraftMessage, Settings } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/types'
 
@@ -133,6 +135,8 @@ export class WhatsAppClient {
     private async handleOwnerMessage(msg: Message): Promise<void> {
         try {
             const settings = await getSettings()
+            const features = FEATURE_DEFAULTS[settings.edition || 'personal']
+            if (!features.ownerInterception) return
             if (settings.ownerIntercept?.enabled === false) return
 
             // msg.to is the recipient (customer) for outgoing messages
@@ -276,6 +280,7 @@ export class WhatsAppClient {
     }
 
     private async processAggregatedMessages(messages: Message[], settings: Settings, contactName: string): Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; reply?: string; error?: string }> {
+        const features = FEATURE_DEFAULTS[settings.edition || 'personal']
         if (messages.length === 0) return { status: 'skipped' }
 
         // Use the last message for context (chat ID, timestamp, etc.)
@@ -302,7 +307,7 @@ export class WhatsAppClient {
             log('INFO', `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`)
 
             // ========== CONVERSATION MEMORY: Embed User Message ==========
-            if (settings.conversationMemory?.enabled !== false) {
+            if (features.memory.enabled && settings.conversationMemory?.enabled !== false) {
                 try {
                     await embedMessage(contactNumber, 'user', combinedQuery, combinedMultimodal || undefined)
                 } catch (embedError) {
@@ -313,7 +318,7 @@ export class WhatsAppClient {
             // ========== CONVERSATION MEMORY: Semantic + Recent Recall ==========
             let history: { role: 'user' | 'model'; content: string }[] = []
             try {
-                if (settings.conversationMemory?.enabled !== false) {
+                if (features.memory.enabled && settings.conversationMemory?.enabled !== false) {
                     // Use semantic memory for relevant context
                     const semanticMemories = await recallMemory(contactNumber, combinedQuery, 5)
                     const recentMemories = await getRecentHistory(contactNumber, 5)
@@ -401,11 +406,20 @@ If in doubt, choose [NO_REPLY_NEEDED].
 `
             }
 
+
+            // ========== STYLE LEARNING: Fetch Context ==========
+            // Retrieve global style + per-chat overrides (relationship, specific vocabulary)
+            // This is injected into the AI system prompt to mimic the owner
+            let styleContext
+            if (features.styleLearning) {
+                styleContext = await styleProfileService.getStyleForChat(contactNumber) // Use number as ID for now
+            }
+
             // Generate AI reply using the COMBINED query
             let reply
             try {
                 const effectivePrompt = collaborativePrompt + settings.systemPrompt
-                reply = await generateAIReply(combinedQuery, effectivePrompt, history, combinedMultimodal)
+                reply = await generateAIReply(combinedQuery, effectivePrompt, history, combinedMultimodal, styleContext)
             } catch (aiError) {
                 const errorStr = String(aiError)
                 log('ERROR', `AI Gen Failed: ${errorStr}`)
@@ -498,7 +512,7 @@ If in doubt, choose [NO_REPLY_NEEDED].
                 })
 
                 // ========== CONVERSATION MEMORY: Embed Bot Reply ==========
-                if (settings.conversationMemory?.enabled !== false) {
+                if (features.memory.enabled && settings.conversationMemory?.enabled !== false) {
                     try {
                         await embedMessage(contactNumber, 'assistant', reply.text)
                     } catch (embedError) {

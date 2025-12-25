@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { Low } from 'lowdb'
 import { JSONFile } from 'lowdb/node'
-import type { Settings, Stats, KnowledgeDocument, DraftMessage, CatalogItem } from '../shared/types'
+import type { Settings, Stats, KnowledgeDocument, DraftMessage, CatalogItem, StyleProfile } from '../shared/types'
 import { SettingsSchema } from '../shared/types'
 import { generateSeedData } from './seed-data'
 
@@ -13,6 +13,7 @@ interface DatabaseSchema {
     catalog: CatalogItem[]
     drafts: DraftMessage[]
     messageContexts: Record<string, string> // messageId -> description
+    styleProfile: StyleProfile
 }
 
 const defaultData: DatabaseSchema = {
@@ -25,7 +26,20 @@ const defaultData: DatabaseSchema = {
     documents: [],
     catalog: [],
     drafts: [],
-    messageContexts: {}
+    messageContexts: {},
+    styleProfile: {
+        global: {
+            vocabulary: [],
+            bannedPhrases: [],
+            patterns: {
+                emojiUsage: 'moderate',
+                sentenceStyle: 'medium',
+                endsWithPeriod: false
+            },
+            sampleMessages: []
+        },
+        perChat: {}
+    }
 }
 
 let db: Low<DatabaseSchema> | null = null
@@ -232,4 +246,19 @@ export async function getMessageContext(messageId: string): Promise<string | und
     const db = getDb()
     await db.read()
     return db.data.messageContexts?.[messageId]
+}
+
+// ============ Style Profile ============
+export async function getStyleProfile(): Promise<StyleProfile> {
+    const db = getDb()
+    await db.read()
+    return db.data.styleProfile
+}
+
+export async function saveStyleProfile(profile: Partial<StyleProfile>): Promise<StyleProfile> {
+    const db = getDb()
+    await db.read()
+    db.data.styleProfile = { ...db.data.styleProfile, ...profile }
+    await db.write()
+    return db.data.styleProfile
 }

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "type-check": "tsc --noEmit",
     "start": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "build:win": "pnpm build && electron-builder --win",

@@ -2,6 +2,7 @@ import { createGroq } from '@ai-sdk/groq'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { generateText } from 'ai'
 import { validateLicense } from '@/lib/license.service'
+import { logRequest } from '@/lib/logger'
 
 // --- Master Key Logic (Groq) ---
 const GROQ_KEYS = [
@@ -40,10 +41,19 @@ function getGoogleKey() {
 }
 
 export async function POST(req: Request) {
+    const startTime = performance.now()
+    let targetModel = 'unknown'
+
     try {
         // A. Auth Check
         const authHeader = req.headers.get('Authorization')
         if (!authHeader?.startsWith('Bearer ')) {
+            logRequest({
+                type: 'chat',
+                status: 'fail',
+                latencyMs: Math.round(performance.now() - startTime),
+                error: 'Unauthorized: Missing License Key'
+            })
             return new Response('Unauthorized: Missing License Key', { status: 401 })
         }
 
@@ -51,13 +61,19 @@ export async function POST(req: Request) {
         const isValid = await validateLicense(licenseKey)
 
         if (!isValid) {
+            logRequest({
+                type: 'chat',
+                status: 'fail',
+                latencyMs: Math.round(performance.now() - startTime),
+                error: 'Payment Required: Invalid License'
+            })
             return new Response('Payment Required: Invalid or Expired License', { status: 402 })
         }
 
         // B. Parse Body
         // Expect 'messages' to be CoreMessage[] (compatible with Vercel AI SDK)
         const { messages, model } = await req.json()
-        const targetModel = model || 'llama-3.3-70b-versatile'
+        targetModel = model || 'llama-3.3-70b-versatile'
 
         let result;
 
@@ -81,11 +97,28 @@ export async function POST(req: Request) {
             })
         }
 
+        // Log Success
+        logRequest({
+            type: 'chat',
+            status: 'ok',
+            latencyMs: Math.round(performance.now() - startTime),
+            model: targetModel
+        })
+
         // D. Return JSON
         return Response.json({ text: result.text })
 
     } catch (error) {
         console.error('Gatekeeper Error:', error)
+
+        logRequest({
+            type: 'chat',
+            status: 'fail',
+            latencyMs: Math.round(performance.now() - startTime),
+            model: targetModel,
+            error: String(error)
+        })
+
         // Return 500 but also log details for debugging
         return new Response(JSON.stringify({ error: 'Gatekeeper Gen Error', details: String(error) }), {
             status: 500,
@@ -93,3 +126,4 @@ export async function POST(req: Request) {
         })
     }
 }
+

@@ -1,7 +1,9 @@
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { StyleMemoryPanel } from '../components/settings/StyleMemoryPanel'
 import { useAppStore, useSettingsStore } from '../store'
 import { useState } from 'react'
 import type { Settings } from '../../../shared/types'
+import { FEATURE_DEFAULTS } from '../../../shared/config/features'
 
 export default function SettingsPage() {
     const { setActivePage } = useAppStore()
@@ -97,6 +99,38 @@ export default function SettingsPage() {
                 <div className="w-8" />
             </nav>
 
+            {/* App Edition (Personal vs Business) */}
+            {(FEATURE_DEFAULTS[settings.edition || 'personal'].canSwitchEdition || (import.meta as any).env?.DEV) && (
+                <Section title="App Edition">
+                    <div className="glass p-6 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <h3 className="font-medium text-slate-900 dark:text-white">Current Edition</h3>
+                            <p className="text-xs text-slate-500">
+                                Switch between feature sets. 'Business' mode locks this setting (simulated).
+                            </p>
+                        </div>
+                        <div className="flex bg-slate-100 dark:bg-stone-950 p-1.5 rounded-2xl border border-slate-200 dark:border-white/5 w-full max-w-sm">
+                            {(['personal', 'business', 'dev'] as const).map((edition) => (
+                                <button
+                                    key={edition}
+                                    onClick={async () => {
+                                        if (!settings) return
+                                        updateSettings({ edition })
+                                        await window.electron.saveSettings({ edition })
+                                    }}
+                                    className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 uppercase tracking-wider ${settings.edition === edition
+                                        ? 'bg-white dark:bg-surface-800 text-brand-600 dark:text-brand-400 shadow-xl shadow-black/20 ring-1 ring-black/5'
+                                        : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-black/5'
+                                        }`}
+                                >
+                                    {edition}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </Section>
+            )}
+
             {/* Business Profile */}
             <Section title="Business Profile">
                 <div className="glass p-6 rounded-2xl space-y-6">
@@ -163,6 +197,15 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </Section>
+
+            {/* Style Learning & Memory */}
+            {(FEATURE_DEFAULTS[settings.edition || 'personal'].styleLearning || FEATURE_DEFAULTS[settings.edition || 'personal'].memory.enabled) && (
+                <Section title="Style Learning & Memory">
+                    <div className="glass p-6 rounded-2xl">
+                        <StyleMemoryPanel />
+                    </div>
+                </Section>
+            )}
 
             {/* Bot Identity */}
             <Section title="Bot Identity">

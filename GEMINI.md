@@ -23,13 +23,20 @@ Electron + React + TypeScript desktop app for WhatsApp automation with AI-powere
 ## File Structure
 ```
 src/
-├── main/         # Electron main process
-├── preload/      # Context bridge
-├── renderer/src/ # React app
-│   ├── pages/    # Page components
-│   ├── store/    # Zustand stores
-│   └── App.tsx   # Main layout
-└── shared/       # Shared types
+├── main/             # Electron main process
+│   ├── services/     # Business logic services
+│   │   ├── owner-intercept.service.ts   # Owner message detection
+│   │   ├── queue.service.ts             # Smart message aggregation
+│   │   ├── conversation-memory.service.ts  # LanceDB vector memory
+│   │   └── multimodal.service.ts        # Image/audio/video analysis
+│   ├── whatsapp.ts   # WhatsApp client + message handling
+│   └── ai-engine.ts  # AI reply generation
+├── preload/          # Context bridge
+├── renderer/src/     # React app
+│   ├── pages/        # Page components
+│   ├── store/        # Zustand stores
+│   └── App.tsx       # Main layout
+└── shared/           # Shared types
 ```
 
 ## Commands

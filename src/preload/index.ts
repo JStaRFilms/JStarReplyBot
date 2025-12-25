@@ -7,7 +7,8 @@ import type {
     KnowledgeDocument,
     CatalogItem,
     Stats,
-    IPCResponse
+    IPCResponse,
+    StyleProfile
 } from '../shared/types'
 
 // Exposed API
@@ -127,7 +128,15 @@ const electronAPI = {
         const handler = (_: unknown, event: any) => callback(event)
         ipcRenderer.on(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler)
         return () => ipcRenderer.removeListener(IPC_CHANNELS.ON_QUEUE_PROCESSED, handler)
-    }
+    },
+
+    // Style Profile
+    getStyleProfile: (): Promise<IPCResponse<StyleProfile>> =>
+        ipcRenderer.invoke(IPC_CHANNELS.GET_STYLE_PROFILE),
+    updateStyleProfile: (updates: Partial<StyleProfile>): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STYLE_PROFILE, updates),
+    deleteStyleItem: (type: 'vocabulary' | 'sample', value: string): Promise<IPCResponse> =>
+        ipcRenderer.invoke(IPC_CHANNELS.DELETE_STYLE_ITEM, { type, value })
 }
 
 // Expose to renderer

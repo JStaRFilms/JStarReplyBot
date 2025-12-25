@@ -4,6 +4,7 @@ import { getSettings, saveSettings, getStats, getCatalog, addCatalogItem, update
 import { getLogs, exportLogs } from './logger'
 import { indexDocument, deleteDocument, getDocuments, reindexDocument, indexCatalogItem, deleteCatalogItem as deleteCatalogItemVector } from './knowledge-base'
 import { validateLicenseKey, getLicenseStatus } from './license'
+import { styleProfileService } from './services/style-profile.service'
 import { IPC_CHANNELS, SettingsSchema } from '../shared/types'
 import type { IPCResponse, Settings, CatalogItem } from '../shared/types'
 
@@ -255,6 +256,39 @@ export function registerIpcHandlers(whatsappClient: WhatsAppClient): void {
         try {
             await deleteCatalogItem(id)
             await deleteCatalogItemVector(id)
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // ============ Style Profile ============
+    ipcMain.handle(IPC_CHANNELS.GET_STYLE_PROFILE, async () => {
+        try {
+            const profile = await styleProfileService.getProfile()
+            return { success: true, data: profile }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_STYLE_PROFILE, async (_, updates: any) => {
+        try {
+            if (updates.global) {
+                await styleProfileService.updateGlobalStyle(updates.global)
+            }
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.DELETE_STYLE_ITEM, async (_, { type, value }: { type: 'vocabulary' | 'sample'; value: string }) => {
+        try {
+            if (type === 'vocabulary') {
+                await styleProfileService.removeVocabulary(value)
+            }
+            // Add other deletion types as needed
             return { success: true }
         } catch (error) {
             return { success: false, error: String(error) }
