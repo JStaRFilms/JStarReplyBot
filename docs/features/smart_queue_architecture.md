@@ -30,8 +30,49 @@ Processing these individually would cost 3x AI credits and result in disjointed 
 - **Buffer Timeout:** 10,000ms (hardcoded in service for now, configurable in future).
 - **Key:** `msg.from` (Phone Number).
 
-## Visual Feedback
-The UI (`LiveFeed.tsx`) receives events:
-- `status: 'sent'`
-- `aggregatedPrompt`: Shows the combined text.
-- `messageCount`: Shows how many messages were merged (e.g., "Matched 3 messages...").
+---
+
+## Owner Interception Support (2025-12-25)
+
+The queue now supports **pausing** when the owner starts typing:
+
+### New Methods
+| Method | Description |
+|--------|-------------|
+| `pauseForOwner(contactId, delayMs)` | Extends the timer to give owner time to reply |
+| `hasPendingBuffer(contactId)` | Check if a contact has pending messages |
+| `isOwnerPaused(contactId)` | Check if buffer was paused for owner |
+
+See `docs/features/owner_interception.md` for full details.
+
+---
+
+## Event Payload
+
+The `QueueProcessedEvent` sent to the UI contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `contactId` | string | WhatsApp ID (e.g., `+234xxx@c.us`) |
+| `contactName` | string? | Display name if available |
+| `messageCount` | number | How many messages were aggregated |
+| `aggregatedPrompt` | string | Combined user messages |
+| `reply` | string? | The AI's generated response *(new)* |
+| `status` | enum | `sent`, `failed`, `skipped`, `drafted` |
+| `error` | string? | Error message if failed |
+| `costSaved` | number | Estimated token savings |
+| `timestamp` | number | Unix timestamp |
+
+---
+
+## Visual Feedback (LiveFeed.tsx)
+
+The UI (`src/renderer/src/components/LiveFeed.tsx`) renders events with:
+
+- **Collapsed View:** Shows truncated preview (`Matched 3 messages...`)
+- **Expanded View:** Click any item to see:
+  - Full user messages in gray box
+  - Bot reply in indigo box (if available)
+  - Error details (if failed)
+- **Chevron icons** indicate expand/collapse state
+

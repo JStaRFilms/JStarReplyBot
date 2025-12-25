@@ -6,6 +6,8 @@ type QueueItem = {
     timer: NodeJS.Timeout
     messages: Message[]
     startTime: number
+    onProcess?: (messages: Message[]) => Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; reply?: string; error?: string }>
+    ownerPaused?: boolean
 }
 
 type BroadcastFn = (channel: string, data: any) => void
@@ -31,7 +33,7 @@ export class SmartQueueService {
     enqueue(
         contactId: string,
         message: Message,
-        onProcess: (messages: Message[]) => Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; error?: string }>
+        onProcess: (messages: Message[]) => Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; reply?: string; error?: string }>
     ): void {
         const existing = this.buffers.get(contactId)
         const now = Date.now()
@@ -59,7 +61,9 @@ export class SmartQueueService {
             this.buffers.set(contactId, {
                 timer,
                 messages: [message],
-                startTime: now
+                startTime: now,
+                onProcess,
+                ownerPaused: false
             })
         }
 
@@ -90,9 +94,51 @@ export class SmartQueueService {
         }
     }
 
+    /**
+     * Pause the queue for a specific contact because the owner is typing.
+     * Extends the debounce timer to give the owner time to finish.
+     */
+    public pauseForOwner(contactId: string, extraDelayMs: number = 15000): void {
+        const item = this.buffers.get(contactId)
+        if (!item) {
+            log('DEBUG', `[SmartQueue] No pending buffer for ${contactId} to pause`)
+            return
+        }
+
+        // Cancel existing timer
+        clearTimeout(item.timer)
+        item.ownerPaused = true
+
+        log('INFO', `[SmartQueue] Pausing buffer for ${contactId} - owner is typing (+${extraDelayMs}ms)`)
+
+        // Set a new extended timer
+        if (item.onProcess) {
+            item.timer = setTimeout(() => {
+                this.processBuffer(contactId, item.onProcess!)
+            }, extraDelayMs)
+        }
+
+        this.emitQueueUpdate()
+    }
+
+    /**
+     * Check if there's a pending buffer for a contact.
+     */
+    public hasPendingBuffer(contactId: string): boolean {
+        return this.buffers.has(contactId)
+    }
+
+    /**
+     * Check if a buffer was paused for owner interception.
+     */
+    public isOwnerPaused(contactId: string): boolean {
+        const item = this.buffers.get(contactId)
+        return item?.ownerPaused ?? false
+    }
+
     private async processBuffer(
         contactId: string,
-        callback: (messages: Message[]) => Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; error?: string }>
+        callback: (messages: Message[]) => Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; reply?: string; error?: string }>
     ) {
         const item = this.buffers.get(contactId)
         if (!item) return
@@ -112,6 +158,7 @@ export class SmartQueueService {
                     contactName: (item.messages[0] as any)._data?.notifyName || contactId,
                     messageCount: item.messages.length,
                     aggregatedPrompt: item.messages.map(m => m.body).join(' | '),
+                    reply: result.reply,
                     costSaved: (item.messages.length - 1) * 0.05,
                     timestamp: Date.now(),
                     status: result.status,

@@ -340,6 +340,15 @@ const SettingsSchema = zod.z.object({
     maxMessagesPerContact: zod.z.number().default(500),
     ttlDays: zod.z.number().default(30)
     // 0 = infinite
+  }).default({}),
+  // Owner Interception (Collaborative Mode)
+  // Detects when YOU (the owner) message a customer and adjusts bot behavior accordingly
+  ownerIntercept: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    pauseDurationMs: zod.z.number().default(15e3),
+    // Extra pause when owner types (15s)
+    doubleTextEnabled: zod.z.boolean().default(true)
+    // Allow bot to follow up after owner
   }).default({})
 });
 const IPC_CHANNELS = {
@@ -1441,7 +1450,8 @@ Be concise. Focus on INTENT over literal visual description.`;
       });
       output = result.text;
     }
-    log("AI", `[Multimodal] ${mode} analysis: ${output.substring(0, 50)}...`);
+    log("AI", `[Multimodal] ${mode.toUpperCase()} Analysis Result:
+${output}`);
     return output;
   } catch (error) {
     log("ERROR", `Multimodal analysis failed (${mode}): ${error}`);
@@ -1482,7 +1492,9 @@ class SmartQueueService {
       this.buffers.set(contactId, {
         timer,
         messages: [message],
-        startTime: now
+        startTime: now,
+        onProcess,
+        ownerPaused: false
       });
     }
     this.emitQueueUpdate();
@@ -1505,6 +1517,39 @@ class SmartQueueService {
       this.emitQueueUpdate();
     }
   }
+  /**
+   * Pause the queue for a specific contact because the owner is typing.
+   * Extends the debounce timer to give the owner time to finish.
+   */
+  pauseForOwner(contactId, extraDelayMs = 15e3) {
+    const item = this.buffers.get(contactId);
+    if (!item) {
+      log("DEBUG", `[SmartQueue] No pending buffer for ${contactId} to pause`);
+      return;
+    }
+    clearTimeout(item.timer);
+    item.ownerPaused = true;
+    log("INFO", `[SmartQueue] Pausing buffer for ${contactId} - owner is typing (+${extraDelayMs}ms)`);
+    if (item.onProcess) {
+      item.timer = setTimeout(() => {
+        this.processBuffer(contactId, item.onProcess);
+      }, extraDelayMs);
+    }
+    this.emitQueueUpdate();
+  }
+  /**
+   * Check if there's a pending buffer for a contact.
+   */
+  hasPendingBuffer(contactId) {
+    return this.buffers.has(contactId);
+  }
+  /**
+   * Check if a buffer was paused for owner interception.
+   */
+  isOwnerPaused(contactId) {
+    const item = this.buffers.get(contactId);
+    return item?.ownerPaused ?? false;
+  }
   async processBuffer(contactId, callback) {
     const item = this.buffers.get(contactId);
     if (!item) return;
@@ -1519,6 +1564,7 @@ class SmartQueueService {
           contactName: item.messages[0]._data?.notifyName || contactId,
           messageCount: item.messages.length,
           aggregatedPrompt: item.messages.map((m) => m.body).join(" | "),
+          reply: result.reply,
           costSaved: (item.messages.length - 1) * 0.05,
           timestamp: Date.now(),
           status: result.status,
@@ -1652,7 +1698,8 @@ async function embedMessage(contactId, role, content, mediaContext) {
       contactId,
       role,
       text: content,
-      mediaContext: mediaContext || null,
+      mediaContext: mediaContext || "",
+      // Empty string instead of null for LanceDB schema
       vector,
       timestamp: Date.now()
     };
@@ -1719,6 +1766,101 @@ async function getRecentHistory(contactId, limit = 10) {
     return [];
   }
 }
+class OwnerInterceptService {
+  // Map of chatId -> owner activity
+  activeChats = /* @__PURE__ */ new Map();
+  // How long to remember owner activity before expiring (default: 5 minutes)
+  ACTIVITY_TTL_MS = 5 * 60 * 1e3;
+  constructor() {
+    setInterval(() => this.cleanup(), 60 * 1e3);
+  }
+  /**
+   * Called when the owner sends a message to a chat.
+   * This signals that the owner is taking over the conversation.
+   */
+  onOwnerMessage(chatId, msg) {
+    const existing = this.activeChats.get(chatId);
+    log("INFO", `[OwnerIntercept] Owner messaged ${chatId}: "${msg.body.substring(0, 50)}..."`);
+    this.activeChats.set(chatId, {
+      ownerMessage: msg,
+      ownerMessageText: msg.body,
+      timestamp: Date.now(),
+      pendingCustomerMessages: existing?.pendingCustomerMessages || []
+    });
+  }
+  /**
+   * Called when a customer message is queued. We track it here in case
+   * the owner responds before the bot does.
+   */
+  trackCustomerMessage(chatId, msg) {
+    const existing = this.activeChats.get(chatId);
+    if (existing) {
+      existing.pendingCustomerMessages.push(msg);
+    } else {
+      this.activeChats.set(chatId, {
+        ownerMessage: null,
+        ownerMessageText: "",
+        timestamp: Date.now(),
+        pendingCustomerMessages: [msg]
+      });
+    }
+  }
+  /**
+   * Check if the owner has recently messaged this chat.
+   * Used before generating an AI reply to decide if we should inject owner context.
+   */
+  hasOwnerActivity(chatId) {
+    const activity = this.activeChats.get(chatId);
+    if (!activity || !activity.ownerMessageText) return false;
+    const age = Date.now() - activity.timestamp;
+    if (age > this.ACTIVITY_TTL_MS) {
+      this.activeChats.delete(chatId);
+      return false;
+    }
+    return true;
+  }
+  /**
+   * Get the owner's message for context injection into the AI prompt.
+   */
+  getOwnerContext(chatId) {
+    const activity = this.activeChats.get(chatId);
+    if (!activity || !activity.ownerMessageText) return null;
+    return {
+      ownerMessage: activity.ownerMessageText,
+      customerMessages: activity.pendingCustomerMessages.map((m) => m.body)
+    };
+  }
+  /**
+   * Clear activity for a chat after the bot has processed it.
+   */
+  clearChat(chatId) {
+    log("DEBUG", `[OwnerIntercept] Clearing activity for ${chatId}`);
+    this.activeChats.delete(chatId);
+  }
+  /**
+   * Cleanup stale entries to prevent memory leaks.
+   */
+  cleanup() {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [chatId, activity] of this.activeChats.entries()) {
+      if (now - activity.timestamp > this.ACTIVITY_TTL_MS) {
+        this.activeChats.delete(chatId);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      log("DEBUG", `[OwnerIntercept] Cleaned up ${cleaned} stale entries`);
+    }
+  }
+  /**
+   * Get debug info about active chats.
+   */
+  getActiveChats() {
+    return Array.from(this.activeChats.keys());
+  }
+}
+const ownerInterceptService = new OwnerInterceptService();
 class WhatsAppClient {
   client = null;
   status = "disconnected";
@@ -1795,12 +1937,41 @@ class WhatsAppClient {
       if (!this.isRunning) return;
       await this.handleIncomingMessage(msg);
     });
+    this.client.on("message_create", async (msg) => {
+      if (!this.isRunning) return;
+      if (msg.fromMe) {
+        await this.handleOwnerMessage(msg);
+      }
+    });
     this.client.on("message_revoke_everyone", async (msg) => {
       if (!this.isRunning) return;
       if (msg) {
         this.queueService.removeMessage(msg.from, msg.id._serialized);
       }
     });
+  }
+  /**
+   * Handle outgoing messages from the owner.
+   * Detects when owner is typing to a customer and pauses bot responses.
+   */
+  async handleOwnerMessage(msg) {
+    try {
+      const settings = await getSettings();
+      if (settings.ownerIntercept?.enabled === false) return;
+      const chatId = msg.to;
+      log("INFO", `[OwnerIntercept] Owner sent message to ${chatId}: "${msg.body.substring(0, 30)}..."`);
+      if (this.queueService.hasPendingBuffer(chatId)) {
+        log("INFO", `[OwnerIntercept] Pending queue found - pausing and injecting context`);
+        ownerInterceptService.onOwnerMessage(chatId, msg);
+        const pauseMs = settings.ownerIntercept?.pauseDurationMs || 15e3;
+        this.queueService.pauseForOwner(chatId, pauseMs);
+      } else {
+        ownerInterceptService.onOwnerMessage(chatId, msg);
+        log("DEBUG", `[OwnerIntercept] No pending queue - tracking owner activity for context`);
+      }
+    } catch (error) {
+      log("ERROR", `[OwnerIntercept] Error handling owner message: ${error}`);
+    }
   }
   async handleIncomingMessage(msg) {
     try {
@@ -1871,6 +2042,10 @@ class WhatsAppClient {
         }
       }
       msg._multimodalContext = multimodalContext;
+      if (!this.queueService.hasPendingBuffer(msg.from)) {
+        ownerInterceptService.clearChat(msg.from);
+        log("DEBUG", `[OwnerIntercept] New conversation - cleared stale owner context for ${msg.from}`);
+      }
       this.queueService.enqueue(
         msg.from,
         msg,
@@ -1945,17 +2120,58 @@ class WhatsAppClient {
       } catch (histError) {
         log("WARN", `Failed to fetch history: ${histError}`);
       }
+      let collaborativePrompt = "";
+      let isCollaborativeMode = false;
+      const ownerContext = ownerInterceptService.getOwnerContext(contactNumber + "@c.us");
+      if (ownerContext && settings.ownerIntercept?.enabled !== false) {
+        isCollaborativeMode = true;
+        log("INFO", `[OwnerIntercept] Collaborative mode active - owner said: "${ownerContext.ownerMessage.substring(0, 50)}..."`);
+        history.push({
+          role: "model",
+          content: `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}`
+        });
+        collaborativePrompt = `
+
+=== COLLABORATIVE MODE ACTIVE ===
+The business owner has just replied to this customer with: "${ownerContext.ownerMessage}"
+
+Your job is to decide:
+1. If the owner's reply FULLY addresses the customer's question(s), respond ONLY with: [NO_REPLY_NEEDED]
+2. If you can add VALUE (e.g., answer an unanswered question, provide pricing, clarify something), write a brief follow-up message.
+3. If writing a follow-up, start with [REPLY_MODE: PLAIN] or [REPLY_MODE: QUOTE] to indicate whether to send as a plain message or quote a specific customer message.
+
+DO NOT repeat what the owner said. DO NOT be redundant. Be brief and additive.
+If in doubt, choose [NO_REPLY_NEEDED].
+=================================
+
+`;
+      }
       let reply;
       try {
-        reply = await generateAIReply(combinedQuery, settings.systemPrompt, history, combinedMultimodal);
+        const effectivePrompt = collaborativePrompt + settings.systemPrompt;
+        reply = await generateAIReply(combinedQuery, effectivePrompt, history, combinedMultimodal);
       } catch (aiError) {
         const errorStr = String(aiError);
         log("ERROR", `AI Gen Failed: ${errorStr}`);
         return { status: "failed", error: errorStr.includes("402") ? "License Expired" : "AI Service Error" };
       }
+      if (isCollaborativeMode) {
+        ownerInterceptService.clearChat(contactNumber + "@c.us");
+      }
       if (!reply) {
         log("WARN", "No reply generated by AI (Empty response)");
         return { status: "skipped", error: "Empty AI Response" };
+      }
+      if (reply.text.includes("[NO_REPLY_NEEDED]")) {
+        log("INFO", `[OwnerIntercept] AI decided owner's reply was sufficient - staying silent`);
+        return { status: "skipped", error: "Owner handled it" };
+      }
+      let replyMode = "plain";
+      if (reply.text.includes("[REPLY_MODE: QUOTE]")) {
+        replyMode = "quote";
+        reply.text = reply.text.replace("[REPLY_MODE: QUOTE]", "").trim();
+      } else if (reply.text.includes("[REPLY_MODE: PLAIN]")) {
+        reply.text = reply.text.replace("[REPLY_MODE: PLAIN]", "").trim();
       }
       const handoverRequested = settings.humanHandoverEnabled && messages.some(
         (m) => this.detectHandoverRequest(m.body)
@@ -1982,14 +2198,14 @@ class WhatsAppClient {
           await addDraft(draft);
           this.broadcastToRenderer(IPC_CHANNELS.ON_NEW_DRAFT, draft);
           log("INFO", `Draft queued for approval: ${draft.id}`);
-          return { status: "drafted" };
+          return { status: "drafted", reply: reply.text };
         } catch (dbError) {
           log("ERROR", `Failed to save draft to database: ${dbError}`);
           return { status: "failed", error: "Draft DB Error" };
         }
       }
       try {
-        await this.sendReplyWithSafeMode(lastMsg, reply.text, settings);
+        await this.sendReplyWithSafeMode(lastMsg, reply.text, settings, isCollaborativeMode ? replyMode : "quote");
         const now = /* @__PURE__ */ new Date();
         const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
         this.broadcastToRenderer(IPC_CHANNELS.ON_ACTIVITY, {
@@ -2007,7 +2223,7 @@ class WhatsAppClient {
             log("WARN", `Failed to embed bot reply: ${embedError}`);
           }
         }
-        return { status: "sent" };
+        return { status: "sent", reply: reply.text };
       } catch (sendError) {
         log("ERROR", `Failed to send reply: ${sendError}`);
         return { status: "failed", error: "WhatsApp Send Failed" };
@@ -2048,8 +2264,9 @@ class WhatsAppClient {
     const lowerText = text.toLowerCase();
     return keywords.some((kw) => lowerText.includes(kw));
   }
-  async sendReplyWithSafeMode(msg, text, settings) {
+  async sendReplyWithSafeMode(msg, text, settings, replyMode = "quote") {
     const chat = await msg.getChat();
+    const chatId = msg.from;
     const messages = this.splitMessage(text);
     for (let i = 0; i < messages.length; i++) {
       const messageText = messages[i];
@@ -2058,10 +2275,18 @@ class WhatsAppClient {
         const delay = this.randomDelay(settings.minDelay, settings.maxDelay);
         log("DEBUG", `Safe mode: waiting ${delay}ms before reply ${i + 1}/${messages.length}`);
         await this.sleep(delay);
+        if (settings.ownerIntercept?.enabled !== false && ownerInterceptService.hasOwnerActivity(chatId)) {
+          log("INFO", `[OwnerIntercept] Owner messaged during safe mode delay - aborting send`);
+          return;
+        }
         await chat.sendStateTyping();
         await this.sleep(Math.min(messageText.length * 30, 3e3));
+        if (settings.ownerIntercept?.enabled !== false && ownerInterceptService.hasOwnerActivity(chatId)) {
+          log("INFO", `[OwnerIntercept] Owner messaged during typing simulation - aborting send`);
+          return;
+        }
       }
-      if (i === 0) {
+      if (i === 0 && replyMode === "quote") {
         await msg.reply(messageText);
       } else {
         await chat.sendMessage(messageText);
@@ -2183,6 +2408,8 @@ class WhatsAppClient {
         messageCount: 1,
         // approximate
         aggregatedPrompt: draft.query,
+        reply: text,
+        // The reply that was sent
         costSaved: 0,
         timestamp: Date.now(),
         status: "sent",

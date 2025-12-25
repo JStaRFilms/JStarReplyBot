@@ -23,7 +23,7 @@ export interface ConversationMemoryRecord {
     contactId: string
     role: 'user' | 'assistant'
     text: string
-    mediaContext: string | null
+    mediaContext: string  // Empty string if no media (LanceDB can't handle null)
     vector: number[]
     timestamp: number
 }
@@ -31,7 +31,7 @@ export interface ConversationMemoryRecord {
 export interface RecalledMemory {
     text: string
     role: 'user' | 'assistant'
-    mediaContext: string | null
+    mediaContext: string
     timestamp: number
     relevance: number
 }
@@ -172,7 +172,7 @@ export async function embedMessage(
             contactId,
             role,
             text: content,
-            mediaContext: mediaContext || null,
+            mediaContext: mediaContext || '', // Empty string instead of null for LanceDB schema
             vector,
             timestamp: Date.now()
         }

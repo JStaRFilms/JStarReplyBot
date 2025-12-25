@@ -45,6 +45,14 @@ export const SettingsSchema = z.object({
         enabled: z.boolean().default(true),
         maxMessagesPerContact: z.number().default(500),
         ttlDays: z.number().default(30) // 0 = infinite
+    }).default({}),
+
+    // Owner Interception (Collaborative Mode)
+    // Detects when YOU (the owner) message a customer and adjusts bot behavior accordingly
+    ownerIntercept: z.object({
+        enabled: z.boolean().default(true),
+        pauseDurationMs: z.number().default(15000), // Extra pause when owner types (15s)
+        doubleTextEnabled: z.boolean().default(true) // Allow bot to follow up after owner
     }).default({})
 })
 export type Settings = z.infer<typeof SettingsSchema>
@@ -180,6 +188,7 @@ export interface QueueProcessedEvent {
     contactName?: string
     messageCount: number
     aggregatedPrompt: string
+    reply?: string // The AI's generated reply
     costSaved: number
     timestamp: number
     status: 'sent' | 'failed' | 'skipped' | 'drafted'

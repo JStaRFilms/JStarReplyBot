@@ -44,6 +44,15 @@ zod.z.object({
     maxMessagesPerContact: zod.z.number().default(500),
     ttlDays: zod.z.number().default(30)
     // 0 = infinite
+  }).default({}),
+  // Owner Interception (Collaborative Mode)
+  // Detects when YOU (the owner) message a customer and adjusts bot behavior accordingly
+  ownerIntercept: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    pauseDurationMs: zod.z.number().default(15e3),
+    // Extra pause when owner types (15s)
+    doubleTextEnabled: zod.z.boolean().default(true)
+    // Allow bot to follow up after owner
   }).default({})
 });
 const IPC_CHANNELS = {

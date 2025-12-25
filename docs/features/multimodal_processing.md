@@ -121,7 +121,25 @@ This ensures the AI remembers that a previous message was an image/voice note ev
 | `voiceEnabled` | boolean | `true`  | Enable voice note transcription      |
 | `visionEnabled`| boolean | `true`  | Enable image/video analysis          |
 
+---
+
+## Logging & Debugging (2025-12-25)
+
+Multimodal analysis now logs the **full AI description** for debugging:
+
+```
+[AI] [Multimodal] IMAGE Analysis Result:
+[TYPE]: MEME
+[INTENT]: sharing a joke about being tired
+[CONTEXT]: Meme shows a person looking exhausted...
+```
+
+Check the **Logs** tab in the app to see complete media descriptions. This helps debug cases where the AI misinterprets media intent.
+
+---
+
 ## Dependencies
 - `@ai-sdk/google` (Local Gemini)
 - `@google/generative-ai` (Embeddings)
 - Gatekeeper `/chat` endpoint (Licensed users)
+

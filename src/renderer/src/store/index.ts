@@ -77,7 +77,17 @@ const defaultSettings: Settings = {
     voiceEnabled: false,
     visionEnabled: false,
     personas: [],
-    activePersonaId: undefined
+    activePersonaId: undefined,
+    conversationMemory: {
+        enabled: true,
+        maxMessagesPerContact: 500,
+        ttlDays: 30
+    },
+    ownerIntercept: {
+        enabled: true,
+        pauseDurationMs: 15000,
+        doubleTextEnabled: true
+    }
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({

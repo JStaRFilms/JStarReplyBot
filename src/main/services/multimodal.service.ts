@@ -133,7 +133,7 @@ Be concise. Focus on INTENT over literal visual description.`
             output = result.text
         }
 
-        log('AI', `[Multimodal] ${mode} analysis: ${output.substring(0, 50)}...`)
+        log('AI', `[Multimodal] ${mode.toUpperCase()} Analysis Result:\n${output}`)
         return output
 
     } catch (error) {

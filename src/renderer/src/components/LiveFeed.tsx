@@ -92,6 +92,21 @@ export function LiveFeed({ events }: LiveFeedProps) {
                                             "{event.aggregatedPrompt}"
                                         </p>
                                     </div>
+
+                                    {/* AI Reply Section */}
+                                    {event.reply && (
+                                        <>
+                                            <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mt-3">
+                                                🤖 Bot Reply:
+                                            </p>
+                                            <div className="bg-indigo-50 dark:bg-indigo-500/10 rounded-lg p-3 border border-indigo-100 dark:border-indigo-500/20">
+                                                <p className="text-sm text-indigo-700 dark:text-indigo-300 whitespace-pre-wrap break-words">
+                                                    {event.reply}
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+
                                     {event.error && (
                                         <div className="bg-rose-50 dark:bg-rose-500/10 rounded-lg p-3 border border-rose-100 dark:border-rose-500/20">
                                             <p className="text-xs font-medium text-rose-600 dark:text-rose-400">

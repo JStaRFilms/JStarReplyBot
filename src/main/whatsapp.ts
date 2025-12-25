@@ -9,6 +9,7 @@ import { generateAIReply } from './ai-engine'
 import { analyzeMedia } from './services/multimodal.service'
 import { SmartQueueService } from './services/queue.service'
 import { embedMessage, recallMemory, getRecentHistory } from './services/conversation-memory.service'
+import { ownerInterceptService } from './services/owner-intercept.service'
 import type { ConnectionStatus, DraftMessage, Settings } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/types'
 
@@ -105,6 +106,17 @@ export class WhatsAppClient {
             await this.handleIncomingMessage(msg)
         })
 
+        // message_create fires for ALL messages (incoming AND outgoing)
+        // This is where we detect owner messages since 'message' only fires for incoming
+        this.client.on('message_create', async (msg) => {
+            if (!this.isRunning) return
+
+            // Only process outgoing messages (from owner) here
+            if (msg.fromMe) {
+                await this.handleOwnerMessage(msg)
+            }
+        })
+
         this.client.on('message_revoke_everyone', async (msg) => {
             if (!this.isRunning) return
             // Remove the revoked message from the queue if it's currently buffered
@@ -114,12 +126,50 @@ export class WhatsAppClient {
         })
     }
 
+    /**
+     * Handle outgoing messages from the owner.
+     * Detects when owner is typing to a customer and pauses bot responses.
+     */
+    private async handleOwnerMessage(msg: Message): Promise<void> {
+        try {
+            const settings = await getSettings()
+            if (settings.ownerIntercept?.enabled === false) return
+
+            // msg.to is the recipient (customer) for outgoing messages
+            const chatId = msg.to
+
+            log('INFO', `[OwnerIntercept] Owner sent message to ${chatId}: "${msg.body.substring(0, 30)}..."`)
+
+            // Check if there's a pending queue for this contact
+            if (this.queueService.hasPendingBuffer(chatId)) {
+                log('INFO', `[OwnerIntercept] Pending queue found - pausing and injecting context`)
+
+                // Notify the intercept service
+                ownerInterceptService.onOwnerMessage(chatId, msg)
+
+                // Pause the queue (extend timer to give owner time)
+                const pauseMs = settings.ownerIntercept?.pauseDurationMs || 15000
+                this.queueService.pauseForOwner(chatId, pauseMs)
+            } else {
+                // No pending messages, just track owner activity for future context
+                ownerInterceptService.onOwnerMessage(chatId, msg)
+                log('DEBUG', `[OwnerIntercept] No pending queue - tracking owner activity for context`)
+            }
+        } catch (error) {
+            log('ERROR', `[OwnerIntercept] Error handling owner message: ${error}`)
+        }
+    }
+
     private async handleIncomingMessage(msg: Message): Promise<void> {
         try {
             const settings = await getSettings()
 
-            // Pre-check for simple filters
+            // Owner messages are handled by handleOwnerMessage via message_create event
+            // This event (message) only fires for incoming messages, so fromMe should never be true
+            // but we keep this check as a safety net
             if (msg.fromMe) return
+
+            // Pre-check for simple filters
             if (settings.ignoreGroups && msg.from.includes('@g.us')) return
             if (settings.ignoreGroups && msg.from.includes('@g.us')) return
             if (settings.ignoreStatuses && msg.from.includes('@broadcast') && !msg.from.includes('@newsletter')) return
@@ -209,6 +259,13 @@ export class WhatsAppClient {
             // @ts-ignore
             msg._multimodalContext = multimodalContext
 
+            // If this is a NEW queue (not adding to existing), clear any stale owner context
+            // This prevents old owner messages from being applied to new customer queries
+            if (!this.queueService.hasPendingBuffer(msg.from)) {
+                ownerInterceptService.clearChat(msg.from)
+                log('DEBUG', `[OwnerIntercept] New conversation - cleared stale owner context for ${msg.from}`)
+            }
+
             this.queueService.enqueue(msg.from, msg, (messages) =>
                 this.processAggregatedMessages(messages, settings, contactName)
             )
@@ -218,7 +275,7 @@ export class WhatsAppClient {
         }
     }
 
-    private async processAggregatedMessages(messages: Message[], settings: Settings, contactName: string): Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; error?: string }> {
+    private async processAggregatedMessages(messages: Message[], settings: Settings, contactName: string): Promise<{ status: 'sent' | 'failed' | 'skipped' | 'drafted'; reply?: string; error?: string }> {
         if (messages.length === 0) return { status: 'skipped' }
 
         // Use the last message for context (chat ID, timestamp, etc.)
@@ -311,19 +368,73 @@ export class WhatsAppClient {
                 log('WARN', `Failed to fetch history: ${histError}`)
             }
 
+            // ========== OWNER INTERCEPTION: Collaborative Mode ==========
+            let collaborativePrompt = ''
+            let isCollaborativeMode = false
+            const ownerContext = ownerInterceptService.getOwnerContext(contactNumber + '@c.us')
+
+            if (ownerContext && settings.ownerIntercept?.enabled !== false) {
+                isCollaborativeMode = true
+                log('INFO', `[OwnerIntercept] Collaborative mode active - owner said: "${ownerContext.ownerMessage.substring(0, 50)}..."`)
+
+                // Add owner's message to history as a "model" message (since we are the model)
+                history.push({
+                    role: 'model',
+                    content: `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}`
+                })
+
+                // Modify the system prompt to handle collaborative mode
+                collaborativePrompt = `
+
+=== COLLABORATIVE MODE ACTIVE ===
+The business owner has just replied to this customer with: "${ownerContext.ownerMessage}"
+
+Your job is to decide:
+1. If the owner's reply FULLY addresses the customer's question(s), respond ONLY with: [NO_REPLY_NEEDED]
+2. If you can add VALUE (e.g., answer an unanswered question, provide pricing, clarify something), write a brief follow-up message.
+3. If writing a follow-up, start with [REPLY_MODE: PLAIN] or [REPLY_MODE: QUOTE] to indicate whether to send as a plain message or quote a specific customer message.
+
+DO NOT repeat what the owner said. DO NOT be redundant. Be brief and additive.
+If in doubt, choose [NO_REPLY_NEEDED].
+=================================
+
+`
+            }
+
             // Generate AI reply using the COMBINED query
             let reply
             try {
-                reply = await generateAIReply(combinedQuery, settings.systemPrompt, history, combinedMultimodal)
+                const effectivePrompt = collaborativePrompt + settings.systemPrompt
+                reply = await generateAIReply(combinedQuery, effectivePrompt, history, combinedMultimodal)
             } catch (aiError) {
                 const errorStr = String(aiError)
                 log('ERROR', `AI Gen Failed: ${errorStr}`)
                 return { status: 'failed', error: errorStr.includes('402') ? 'License Expired' : 'AI Service Error' }
             }
 
+            // Clear owner context after processing (whether we reply or not)
+            if (isCollaborativeMode) {
+                ownerInterceptService.clearChat(contactNumber + '@c.us')
+            }
+
             if (!reply) {
                 log('WARN', 'No reply generated by AI (Empty response)')
                 return { status: 'skipped', error: 'Empty AI Response' }
+            }
+
+            // ========== OWNER INTERCEPTION: Check for NO_REPLY_NEEDED ==========
+            if (reply.text.includes('[NO_REPLY_NEEDED]')) {
+                log('INFO', `[OwnerIntercept] AI decided owner's reply was sufficient - staying silent`)
+                return { status: 'skipped', error: 'Owner handled it' }
+            }
+
+            // Parse reply mode if present
+            let replyMode: 'plain' | 'quote' = 'plain'
+            if (reply.text.includes('[REPLY_MODE: QUOTE]')) {
+                replyMode = 'quote'
+                reply.text = reply.text.replace('[REPLY_MODE: QUOTE]', '').trim()
+            } else if (reply.text.includes('[REPLY_MODE: PLAIN]')) {
+                reply.text = reply.text.replace('[REPLY_MODE: PLAIN]', '').trim()
             }
 
             // Check for human handover keywords
@@ -357,7 +468,7 @@ export class WhatsAppClient {
                     await addDbDraft(draft)
                     this.broadcastToRenderer(IPC_CHANNELS.ON_NEW_DRAFT, draft)
                     log('INFO', `Draft queued for approval: ${draft.id}`)
-                    return { status: 'drafted' }
+                    return { status: 'drafted', reply: reply.text }
                 } catch (dbError) {
                     log('ERROR', `Failed to save draft to database: ${dbError}`)
                     return { status: 'failed', error: 'Draft DB Error' }
@@ -366,7 +477,13 @@ export class WhatsAppClient {
 
             // Auto mode: send with safe mode delays
             try {
-                await this.sendReplyWithSafeMode(lastMsg, reply.text, settings)
+                // Pass replyMode and collaborative flag to control quote behavior
+                const wasSent = await this.sendReplyWithSafeMode(lastMsg, reply.text, settings, isCollaborativeMode ? replyMode : 'quote')
+
+                // If send was aborted (owner intercepted), skip embed and broadcast
+                if (!wasSent) {
+                    return { status: 'skipped', error: 'Owner intercepted during send' }
+                }
 
                 // Broadcast activity to renderer
                 const now = new Date()
@@ -389,7 +506,7 @@ export class WhatsAppClient {
                     }
                 }
 
-                return { status: 'sent' }
+                return { status: 'sent', reply: reply.text }
 
             } catch (sendError) {
                 log('ERROR', `Failed to send reply: ${sendError}`)
@@ -450,8 +567,9 @@ export class WhatsAppClient {
         return keywords.some(kw => lowerText.includes(kw))
     }
 
-    private async sendReplyWithSafeMode(msg: Message, text: string, settings: Settings): Promise<void> {
+    private async sendReplyWithSafeMode(msg: Message, text: string, settings: Settings, replyMode: 'quote' | 'plain' = 'quote'): Promise<boolean> {
         const chat = await msg.getChat()
+        const chatId = msg.from // The customer's chat ID
 
         // Split message if needed (FR-017)
         const messages = this.splitMessage(text)
@@ -466,13 +584,26 @@ export class WhatsAppClient {
                 log('DEBUG', `Safe mode: waiting ${delay}ms before reply ${i + 1}/${messages.length}`)
                 await this.sleep(delay)
 
+                // ========== LAST-SECOND OWNER CHECK ==========
+                // After the delay, check if owner has jumped in during this time
+                if (settings.ownerIntercept?.enabled !== false && ownerInterceptService.hasOwnerActivity(chatId)) {
+                    log('INFO', `[OwnerIntercept] Owner messaged during safe mode delay - aborting send`)
+                    return false // Aborted - owner is handling it
+                }
+
                 // Show typing indicator
                 await chat.sendStateTyping()
                 await this.sleep(Math.min(messageText.length * 30, 3000)) // Simulate typing
+
+                // ========== SECOND OWNER CHECK (after typing simulation) ==========
+                if (settings.ownerIntercept?.enabled !== false && ownerInterceptService.hasOwnerActivity(chatId)) {
+                    log('INFO', `[OwnerIntercept] Owner messaged during typing simulation - aborting send`)
+                    return false // Aborted - owner is handling it
+                }
             }
 
-            // Send with quote (FR-016)
-            if (i === 0) {
+            // Send with quote (FR-016) - only quote if replyMode is 'quote' AND it's the first message
+            if (i === 0 && replyMode === 'quote') {
                 await msg.reply(messageText)
             } else {
                 await chat.sendMessage(messageText)
@@ -490,6 +621,8 @@ export class WhatsAppClient {
         } catch (statsError) {
             log('ERROR', `Failed to update stats: ${statsError}`)
         }
+
+        return true // Successfully sent
     }
 
     private splitMessage(text: string): string[] {
@@ -631,6 +764,7 @@ export class WhatsAppClient {
                 contactName: draft.contactName,
                 messageCount: 1, // approximate
                 aggregatedPrompt: draft.query,
+                reply: text, // The reply that was sent
                 costSaved: 0,
                 timestamp: Date.now(),
                 status: 'sent',
