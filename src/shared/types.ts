@@ -38,7 +38,14 @@ export const SettingsSchema = z.object({
         systemPrompt: z.string(),
         tone: z.enum(['professional', 'friendly', 'enthusiastic', 'formal', 'custom'])
     })).default([]),
-    activePersonaId: z.string().optional()
+    activePersonaId: z.string().optional(),
+
+    // Conversation Memory (Per-Contact Vector Storage)
+    conversationMemory: z.object({
+        enabled: z.boolean().default(true),
+        maxMessagesPerContact: z.number().default(500),
+        ttlDays: z.number().default(30) // 0 = infinite
+    }).default({})
 })
 export type Settings = z.infer<typeof SettingsSchema>
 

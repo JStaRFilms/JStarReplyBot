@@ -64,7 +64,7 @@ ${profile.description}`
             : ''
 
         const multimodalBlock = multimodalContext
-            ? `\n\n--- MEDIA CONTEXT ---\nThe user sent a media file with the following analysis:\n${multimodalContext}\n--- END MEDIA CONTEXT ---\n`
+            ? `\n\n--- MEDIA CONTEXT ---\nThe user shared media. Here is the analysis:\n${multimodalContext}\n\nRESPOND BASED ON THE [TYPE] AND [INTENT]:\n- MEME: React to the humor/mood, don't describe the image. Just vibe with it.\n- PRODUCT: Answer questions about the product naturally.\n- SCREENSHOT: Respond to the content shown.\n- SELFIE: Compliment or engage naturally.\n--- END MEDIA CONTEXT ---\n`
             : ''
 
         const fullSystemPrompt = `${systemPrompt}

@@ -37,7 +37,14 @@ zod.z.object({
     systemPrompt: zod.z.string(),
     tone: zod.z.enum(["professional", "friendly", "enthusiastic", "formal", "custom"])
   })).default([]),
-  activePersonaId: zod.z.string().optional()
+  activePersonaId: zod.z.string().optional(),
+  // Conversation Memory (Per-Contact Vector Storage)
+  conversationMemory: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    maxMessagesPerContact: zod.z.number().default(500),
+    ttlDays: zod.z.number().default(30)
+    // 0 = infinite
+  }).default({})
 });
 const IPC_CHANNELS = {
   // Bot control

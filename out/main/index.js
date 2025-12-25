@@ -333,7 +333,14 @@ const SettingsSchema = zod.z.object({
     systemPrompt: zod.z.string(),
     tone: zod.z.enum(["professional", "friendly", "enthusiastic", "formal", "custom"])
   })).default([]),
-  activePersonaId: zod.z.string().optional()
+  activePersonaId: zod.z.string().optional(),
+  // Conversation Memory (Per-Contact Vector Storage)
+  conversationMemory: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    maxMessagesPerContact: zod.z.number().default(500),
+    ttlDays: zod.z.number().default(30)
+    // 0 = infinite
+  }).default({})
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -472,19 +479,19 @@ const defaultData = {
   drafts: [],
   messageContexts: {}
 };
-let db$1 = null;
+let db$2 = null;
 async function initDatabase() {
   const userDataPath = electron.app.getPath("userData");
   const dbPath = path$1.join(userDataPath, "db.json");
   const adapter = new JSONFile(dbPath);
-  db$1 = new Low(adapter, defaultData);
-  await db$1.read();
-  db$1.data = { ...defaultData, ...db$1.data };
-  await db$1.write();
+  db$2 = new Low(adapter, defaultData);
+  await db$2.read();
+  db$2.data = { ...defaultData, ...db$2.data };
+  await db$2.write();
 }
 function getDb() {
-  if (!db$1) throw new Error("Database not initialized");
-  return db$1;
+  if (!db$2) throw new Error("Database not initialized");
+  return db$2;
 }
 async function getSettings() {
   const db2 = getDb();
@@ -620,7 +627,7 @@ async function getMessageContext(messageId) {
   await db2.read();
   return db2.data.messageContexts?.[messageId];
 }
-const db$2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const db$3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   addCatalogItem,
   addDocument,
@@ -672,8 +679,8 @@ function exportLogs() {
   }).join("\n");
 }
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-004";
-let lancedb = null;
-let db = null;
+let lancedb$1 = null;
+let db$1 = null;
 let table = null;
 let genAI = null;
 function getGenAI() {
@@ -690,14 +697,14 @@ function getGenAI() {
   return genAI;
 }
 async function initLanceDB() {
-  if (db) return;
+  if (db$1) return;
   try {
-    lancedb = await import("@lancedb/lancedb");
+    lancedb$1 = await import("@lancedb/lancedb");
     const userDataPath = electron.app.getPath("userData");
     const vectorsPath = path$1.join(userDataPath, "vectors");
-    db = await lancedb.connect(vectorsPath);
+    db$1 = await lancedb$1.connect(vectorsPath);
     try {
-      table = await db.openTable("knowledge");
+      table = await db$1.openTable("knowledge");
     } catch {
       log("INFO", "Knowledge table will be created on first document");
     }
@@ -706,12 +713,12 @@ async function initLanceDB() {
     log("ERROR", `Failed to initialize LanceDB: ${error}`);
   }
 }
-async function getEmbedding(text) {
+async function getEmbedding$1(text) {
   if (!text || text.trim().length === 0) {
     log("WARN", "Skipping embedding for empty text");
     return [];
   }
-  const { getSettings: getSettings2 } = await Promise.resolve().then(() => db$2);
+  const { getSettings: getSettings2 } = await Promise.resolve().then(() => db$3);
   const settings = await getSettings2();
   if (settings.licenseStatus === "active" && settings.licenseKey) {
     try {
@@ -772,7 +779,7 @@ async function indexDocument(filePath, fileName, fileType) {
     for (let i = 0; i < chunks.length; i++) {
       const chunkText2 = chunks[i];
       if (!chunkText2) continue;
-      const vector = await getEmbedding(chunkText2);
+      const vector = await getEmbedding$1(chunkText2);
       records.push({
         id: `${documentId}_chunk_${i}`,
         text: chunkText2,
@@ -783,8 +790,8 @@ async function indexDocument(filePath, fileName, fileType) {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
-    if (!table && db) {
-      table = await db.createTable("knowledge", records);
+    if (!table && db$1) {
+      table = await db$1.createTable("knowledge", records);
     } else if (table) {
       await table.add(records);
     }
@@ -815,7 +822,7 @@ Price: $${item.price}
 Description: ${item.description}
 Tags: ${item.tags.join(", ")}
 ${item.inStock ? "In Stock" : "Out of Stock"}`;
-    const embedding = await getEmbedding(text);
+    const embedding = await getEmbedding$1(text);
     const record = {
       id: `prod_${item.id}`,
       text,
@@ -823,8 +830,8 @@ ${item.inStock ? "In Stock" : "Out of Stock"}`;
       documentId: `prod_${item.id}`
       // Reuse documentId field for product ID
     };
-    if (!table && db) {
-      table = await db.createTable("knowledge", [record]);
+    if (!table && db$1) {
+      table = await db$1.createTable("knowledge", [record]);
     } else if (table) {
       await deleteCatalogItem(item.id);
       await table.add([record]);
@@ -867,7 +874,7 @@ async function retrieveContext(query, topK = 3) {
     return [];
   }
   try {
-    const queryVector = await getEmbedding(query);
+    const queryVector = await getEmbedding$1(query);
     const results = await table.vectorSearch(queryVector).limit(topK).toArray();
     return results.map((r) => r.text);
   } catch (error) {
@@ -1215,8 +1222,14 @@ ${history.map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`).join
     const multimodalBlock = multimodalContext ? `
 
 --- MEDIA CONTEXT ---
-The user sent a media file with the following analysis:
+The user shared media. Here is the analysis:
 ${multimodalContext}
+
+RESPOND BASED ON THE [TYPE] AND [INTENT]:
+- MEME: React to the humor/mood, don't describe the image. Just vibe with it.
+- PRODUCT: Answer questions about the product naturally.
+- SCREENSHOT: Respond to the content shown.
+- SELFIE: Compliment or engage naturally.
 --- END MEDIA CONTEXT ---
 ` : "";
     const fullSystemPrompt = `${systemPrompt}
@@ -1348,7 +1361,21 @@ async function analyzeMedia(mode, base64Data, mimeType) {
     } else if (mode === "video") {
       prompt = "Describe this video. If there is speech, transcribe it. If there is visual action, describe it naturally.";
     } else {
-      prompt = 'Describe the content of this image naturally. If there is text, transcribe it. If there are products, list them. Do not describe the image as an "file" or "attachment", just describe what is IN it.';
+      prompt = `Analyze this image for conversational context. Your task is to help me respond appropriately in a chat.
+
+First, identify the IMAGE TYPE:
+- MEME: A joke/relatable image shared for humor or mood (e.g., reaction images, funny screenshots, relatable content)
+- PRODUCT: A product photo or screenshot (e.g., someone asking about an item)
+- SCREENSHOT: A screenshot of text/conversation/app
+- SELFIE: A personal photo
+- OTHER: Anything else
+
+Then provide:
+1. [TYPE]: One of the above
+2. [INTENT]: Why was this shared? (e.g., "sharing a joke", "asking about availability", "showing off")
+3. [CONTEXT]: If it's a meme/joke, what's the humor? If it's a product, what is it? If there's text, transcribe it.
+
+Be concise. Focus on INTENT over literal visual description.`;
     }
     const content = [{ type: "text", text: prompt }];
     if (mode === "image") {
@@ -1534,6 +1561,164 @@ class SmartQueueService {
     this.broadcast("queue:on-update", items);
   }
 }
+let lancedb = null;
+let db = null;
+const tableCache = /* @__PURE__ */ new Map();
+async function initMemoryDB() {
+  if (db) return;
+  try {
+    lancedb = await import("@lancedb/lancedb");
+    const userDataPath = electron.app.getPath("userData");
+    const memoryPath = path$1.join(userDataPath, "conversation_memory");
+    db = await lancedb.connect(memoryPath);
+    log("INFO", "Conversation Memory DB initialized");
+  } catch (error) {
+    log("ERROR", `Failed to initialize Conversation Memory DB: ${error}`);
+  }
+}
+async function getContactTable(contactId) {
+  await initMemoryDB();
+  if (!db) throw new Error("Memory DB not initialized");
+  const sanitizedId = contactId.replace(/[^a-zA-Z0-9]/g, "_");
+  const tableName = `chat_${sanitizedId}`;
+  if (tableCache.has(tableName)) {
+    return tableCache.get(tableName);
+  }
+  try {
+    const table2 = await db.openTable(tableName);
+    tableCache.set(tableName, table2);
+    return table2;
+  } catch {
+    return null;
+  }
+}
+async function getEmbedding(text) {
+  const { getSettings: getSettings2 } = await Promise.resolve().then(() => db$3);
+  const settings = await getSettings2();
+  if (!text || text.trim().length === 0) {
+    log("WARN", "Skipping embedding for empty text in conversation memory");
+    return [];
+  }
+  if (settings.licenseStatus === "active" && settings.licenseKey) {
+    try {
+      const baseUrl = process.env.GATEKEEPER_URL || "http://127.0.0.1:3000/api";
+      const cleanBase = baseUrl.replace(/\/chat$/, "");
+      const GATEKEEPER_EMBED_URL = `${cleanBase}/embed`;
+      const response = await fetch(GATEKEEPER_EMBED_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${settings.licenseKey}`
+        },
+        body: JSON.stringify({ value: text })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.embedding;
+      }
+      log("WARN", `Gatekeeper embed failed (${response.status}), falling back to local key`);
+    } catch (error) {
+      log("ERROR", `Gatekeeper embed error: ${error}`);
+    }
+  }
+  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
+  if (!apiKey) {
+    log("WARN", "No Gemini API key for conversation memory embedding");
+    return [];
+  }
+  const genAI2 = new GoogleGenerativeAI(apiKey);
+  const model = genAI2.getGenerativeModel({ model: "text-embedding-004" });
+  const result = await model.embedContent(text);
+  return result.embedding.values;
+}
+async function embedMessage(contactId, role, content, mediaContext) {
+  try {
+    await initMemoryDB();
+    if (!db) return false;
+    const textToEmbed = mediaContext ? `${content}
+[Media: ${mediaContext}]` : content;
+    if (!textToEmbed.trim()) {
+      log("DEBUG", "Skipping empty message for conversation memory");
+      return false;
+    }
+    const vector = await getEmbedding(textToEmbed);
+    if (vector.length === 0) {
+      log("WARN", "Failed to generate embedding for conversation memory");
+      return false;
+    }
+    const record = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      contactId,
+      role,
+      text: content,
+      mediaContext: mediaContext || null,
+      vector,
+      timestamp: Date.now()
+    };
+    const sanitizedId = contactId.replace(/[^a-zA-Z0-9]/g, "_");
+    const tableName = `chat_${sanitizedId}`;
+    let table2 = await getContactTable(contactId);
+    if (!table2 && db) {
+      table2 = await db.createTable(tableName, [record]);
+      tableCache.set(tableName, table2);
+      log("INFO", `Created conversation memory table for ${contactId}`);
+    } else if (table2) {
+      await table2.add([record]);
+    }
+    log("DEBUG", `Embedded ${role} message for ${contactId} (${content.substring(0, 30)}...)`);
+    return true;
+  } catch (error) {
+    log("ERROR", `Failed to embed message: ${error}`);
+    return false;
+  }
+}
+async function recallMemory(contactId, query, topK = 5) {
+  try {
+    const table2 = await getContactTable(contactId);
+    if (!table2) {
+      log("DEBUG", `No conversation memory exists for ${contactId}`);
+      return [];
+    }
+    const queryVector = await getEmbedding(query);
+    if (queryVector.length === 0) {
+      return [];
+    }
+    const results = await table2.vectorSearch(queryVector).limit(topK).toArray();
+    return results.map((r) => ({
+      text: r.text,
+      role: r.role,
+      mediaContext: r.mediaContext,
+      timestamp: r.timestamp,
+      relevance: r._distance ? 1 / (1 + r._distance) : 0.5
+      // Convert distance to similarity
+    }));
+  } catch (error) {
+    log("ERROR", `Failed to recall memory: ${error}`);
+    return [];
+  }
+}
+async function getRecentHistory(contactId, limit = 10) {
+  try {
+    const table2 = await getContactTable(contactId);
+    if (!table2) {
+      return [];
+    }
+    const allRecords = await table2.search().limit(limit * 3).toArray();
+    const sorted = allRecords.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+    return sorted.map((r) => ({
+      text: r.text,
+      role: r.role,
+      mediaContext: r.mediaContext,
+      timestamp: r.timestamp,
+      relevance: 0
+      // Not from semantic search
+    }));
+  } catch (error) {
+    log("ERROR", `Failed to get recent history: ${error}`);
+    return [];
+  }
+}
 class WhatsAppClient {
   client = null;
   status = "disconnected";
@@ -1711,18 +1896,52 @@ class WhatsAppClient {
       const combinedQuery = messages.map((m) => m.body).join("\n");
       const combinedMultimodal = messages.map((m) => m._multimodalContext).filter(Boolean).join("\n\n");
       log("INFO", `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`);
+      if (settings.conversationMemory?.enabled !== false) {
+        try {
+          await embedMessage(contactNumber, "user", combinedQuery, combinedMultimodal || void 0);
+        } catch (embedError) {
+          log("WARN", `Failed to embed user message: ${embedError}`);
+        }
+      }
       let history = [];
       try {
-        const fetchedMessages = await chat.fetchMessages({ limit: 30 });
-        const currentBatchIds = new Set(messages.map((m) => m.id._serialized));
-        const historyPromises = fetchedMessages.filter((m) => !currentBatchIds.has(m.id._serialized)).map(async (m) => {
-          const context = await getMessageContext(m.id._serialized);
-          const role = m.fromMe ? "model" : "user";
-          const content = context ? `${m.body}
+        if (settings.conversationMemory?.enabled !== false) {
+          const semanticMemories = await recallMemory(contactNumber, combinedQuery, 5);
+          const recentMemories = await getRecentHistory(contactNumber, 5);
+          const seenTexts = /* @__PURE__ */ new Set();
+          const mergedHistory = [];
+          for (const mem of semanticMemories) {
+            if (!seenTexts.has(mem.text)) {
+              seenTexts.add(mem.text);
+              const role = mem.role === "assistant" ? "model" : "user";
+              const content = mem.mediaContext ? `${mem.text}
+[Media: ${mem.mediaContext}]` : mem.text;
+              mergedHistory.push({ role, content });
+            }
+          }
+          for (const mem of recentMemories) {
+            if (!seenTexts.has(mem.text)) {
+              seenTexts.add(mem.text);
+              const role = mem.role === "assistant" ? "model" : "user";
+              const content = mem.mediaContext ? `${mem.text}
+[Media: ${mem.mediaContext}]` : mem.text;
+              mergedHistory.push({ role, content });
+            }
+          }
+          history = mergedHistory;
+          log("DEBUG", `[Memory] Retrieved ${semanticMemories.length} semantic + ${recentMemories.length} recent memories for ${contactName}`);
+        } else {
+          const fetchedMessages = await chat.fetchMessages({ limit: 30 });
+          const currentBatchIds = new Set(messages.map((m) => m.id._serialized));
+          const historyPromises = fetchedMessages.filter((m) => !currentBatchIds.has(m.id._serialized)).map(async (m) => {
+            const context = await getMessageContext(m.id._serialized);
+            const role = m.fromMe ? "model" : "user";
+            const content = context ? `${m.body}
 [Context: ${context}]` : m.body;
-          return { role, content };
-        });
-        history = await Promise.all(historyPromises);
+            return { role, content };
+          });
+          history = await Promise.all(historyPromises);
+        }
       } catch (histError) {
         log("WARN", `Failed to fetch history: ${histError}`);
       }
@@ -1781,6 +2000,13 @@ class WhatsAppClient {
           response: reply.text,
           timestamp: Date.now()
         });
+        if (settings.conversationMemory?.enabled !== false) {
+          try {
+            await embedMessage(contactNumber, "assistant", reply.text);
+          } catch (embedError) {
+            log("WARN", `Failed to embed bot reply: ${embedError}`);
+          }
+        }
         return { status: "sent" };
       } catch (sendError) {
         log("ERROR", `Failed to send reply: ${sendError}`);
@@ -1931,6 +2157,14 @@ class WhatsAppClient {
         return false;
       }
       await chat.sendMessage(text);
+      try {
+        const settings = await getSettings();
+        if (settings.conversationMemory?.enabled !== false) {
+          await embedMessage(draft.contactNumber, "assistant", text);
+        }
+      } catch (embedError) {
+        log("WARN", `Failed to embed draft reply: ${embedError}`);
+      }
       const currentDrafts = await getDrafts();
       if (!currentDrafts.find((d) => d.id === draftId)) {
         log("WARN", `Draft ${draftId} was already removed by another process`);

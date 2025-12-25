@@ -37,7 +37,21 @@ export async function analyzeMedia(
         } else if (mode === 'video') {
             prompt = 'Describe this video. If there is speech, transcribe it. If there is visual action, describe it naturally.'
         } else {
-            prompt = 'Describe the content of this image naturally. If there is text, transcribe it. If there are products, list them. Do not describe the image as an "file" or "attachment", just describe what is IN it.'
+            prompt = `Analyze this image for conversational context. Your task is to help me respond appropriately in a chat.
+
+First, identify the IMAGE TYPE:
+- MEME: A joke/relatable image shared for humor or mood (e.g., reaction images, funny screenshots, relatable content)
+- PRODUCT: A product photo or screenshot (e.g., someone asking about an item)
+- SCREENSHOT: A screenshot of text/conversation/app
+- SELFIE: A personal photo
+- OTHER: Anything else
+
+Then provide:
+1. [TYPE]: One of the above
+2. [INTENT]: Why was this shared? (e.g., "sharing a joke", "asking about availability", "showing off")
+3. [CONTEXT]: If it's a meme/joke, what's the humor? If it's a product, what is it? If there's text, transcribe it.
+
+Be concise. Focus on INTENT over literal visual description.`
         }
 
         // Construct content array for Google SDK

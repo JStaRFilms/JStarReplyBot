@@ -8,6 +8,7 @@ import { getSettings, incrementStats, getDrafts as getDbDrafts, addDraft as addD
 import { generateAIReply } from './ai-engine'
 import { analyzeMedia } from './services/multimodal.service'
 import { SmartQueueService } from './services/queue.service'
+import { embedMessage, recallMemory, getRecentHistory } from './services/conversation-memory.service'
 import type { ConnectionStatus, DraftMessage, Settings } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/types'
 
@@ -243,25 +244,69 @@ export class WhatsAppClient {
 
             log('INFO', `[SmartQueue] Processing aggregated query (${messages.length} msgs) from ${contactName}: "${combinedQuery.substring(0, 50)}..."`)
 
-            // Fetch conversation history (Last 30 messages)
+            // ========== CONVERSATION MEMORY: Embed User Message ==========
+            if (settings.conversationMemory?.enabled !== false) {
+                try {
+                    await embedMessage(contactNumber, 'user', combinedQuery, combinedMultimodal || undefined)
+                } catch (embedError) {
+                    log('WARN', `Failed to embed user message: ${embedError}`)
+                }
+            }
+
+            // ========== CONVERSATION MEMORY: Semantic + Recent Recall ==========
             let history: { role: 'user' | 'model'; content: string }[] = []
             try {
-                const fetchedMessages = await chat.fetchMessages({ limit: 30 })
-                // Filter out ALL messages in the current batch from history to avoid duplication
-                // We identify them by ID
-                const currentBatchIds = new Set(messages.map(m => m.id._serialized))
+                if (settings.conversationMemory?.enabled !== false) {
+                    // Use semantic memory for relevant context
+                    const semanticMemories = await recallMemory(contactNumber, combinedQuery, 5)
+                    const recentMemories = await getRecentHistory(contactNumber, 5)
 
-                const historyPromises = fetchedMessages
-                    .filter(m => !currentBatchIds.has(m.id._serialized))
-                    .map(async m => {
-                        const context = await getMessageContext(m.id._serialized)
-                        const role = m.fromMe ? 'model' : 'user'
-                        // Enrich content with persisted multimodal context if available
-                        const content = context ? `${m.body}\n[Context: ${context}]` : m.body
-                        return { role, content } as { role: 'user' | 'model'; content: string }
-                    })
+                    // Merge: prioritize semantic, dedupe by text
+                    const seenTexts = new Set<string>()
+                    const mergedHistory: { role: 'user' | 'model'; content: string }[] = []
 
-                history = await Promise.all(historyPromises)
+                    // Add semantic matches first (most relevant)
+                    for (const mem of semanticMemories) {
+                        if (!seenTexts.has(mem.text)) {
+                            seenTexts.add(mem.text)
+                            const role = mem.role === 'assistant' ? 'model' : 'user'
+                            const content = mem.mediaContext
+                                ? `${mem.text}\n[Media: ${mem.mediaContext}]`
+                                : mem.text
+                            mergedHistory.push({ role, content })
+                        }
+                    }
+
+                    // Add recent messages for continuity (if not already seen)
+                    for (const mem of recentMemories) {
+                        if (!seenTexts.has(mem.text)) {
+                            seenTexts.add(mem.text)
+                            const role = mem.role === 'assistant' ? 'model' : 'user'
+                            const content = mem.mediaContext
+                                ? `${mem.text}\n[Media: ${mem.mediaContext}]`
+                                : mem.text
+                            mergedHistory.push({ role, content })
+                        }
+                    }
+
+                    history = mergedHistory
+                    log('DEBUG', `[Memory] Retrieved ${semanticMemories.length} semantic + ${recentMemories.length} recent memories for ${contactName}`)
+                } else {
+                    // Fallback: Use legacy fetchMessages approach
+                    const fetchedMessages = await chat.fetchMessages({ limit: 30 })
+                    const currentBatchIds = new Set(messages.map(m => m.id._serialized))
+
+                    const historyPromises = fetchedMessages
+                        .filter(m => !currentBatchIds.has(m.id._serialized))
+                        .map(async m => {
+                            const context = await getMessageContext(m.id._serialized)
+                            const role = m.fromMe ? 'model' : 'user'
+                            const content = context ? `${m.body}\n[Context: ${context}]` : m.body
+                            return { role, content } as { role: 'user' | 'model'; content: string }
+                        })
+
+                    history = await Promise.all(historyPromises)
+                }
             } catch (histError) {
                 log('WARN', `Failed to fetch history: ${histError}`)
             }
@@ -334,6 +379,15 @@ export class WhatsAppClient {
                     response: reply.text,
                     timestamp: Date.now()
                 })
+
+                // ========== CONVERSATION MEMORY: Embed Bot Reply ==========
+                if (settings.conversationMemory?.enabled !== false) {
+                    try {
+                        await embedMessage(contactNumber, 'assistant', reply.text)
+                    } catch (embedError) {
+                        log('WARN', `Failed to embed bot reply: ${embedError}`)
+                    }
+                }
 
                 return { status: 'sent' }
 
@@ -546,6 +600,16 @@ export class WhatsAppClient {
             }
 
             await chat.sendMessage(text)
+
+            // ========== CONVERSATION MEMORY: Embed Draft Reply ==========
+            try {
+                const settings = await getSettings()
+                if (settings.conversationMemory?.enabled !== false) {
+                    await embedMessage(draft.contactNumber, 'assistant', text)
+                }
+            } catch (embedError) {
+                log('WARN', `Failed to embed draft reply: ${embedError}`)
+            }
 
             // Re-verify draft still exists before deletion (atomic check)
             const currentDrafts = await getDbDrafts()
