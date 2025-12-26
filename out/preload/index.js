@@ -53,7 +53,54 @@ zod.z.object({
     // Allow bot to follow up after owner
   }).default({}),
   // Application Edition (Personal vs Business)
-  edition: zod.z.enum(["personal", "business", "dev"]).default("personal")
+  edition: zod.z.enum(["personal", "business", "dev"]).default("personal"),
+  // Personal Edition Features
+  personalNotes: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    title: zod.z.string(),
+    content: zod.z.string(),
+    category: zod.z.string().optional(),
+    createdAt: zod.z.number(),
+    updatedAt: zod.z.number()
+  })).default([]),
+  contactCategories: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    name: zod.z.string(),
+    description: zod.z.string().optional(),
+    color: zod.z.string().default("#3b82f6")
+  })).default([]),
+  moodDetection: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    sensitivity: zod.z.enum(["low", "medium", "high"]).default("medium"),
+    autoRespond: zod.z.boolean().default(false)
+  }).default({}),
+  personalAnalytics: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    showDailyStats: zod.z.boolean().default(true),
+    showWeeklyStats: zod.z.boolean().default(true),
+    showMonthlyStats: zod.z.boolean().default(true)
+  }).default({}),
+  // Contact Management System
+  contacts: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    name: zod.z.string(),
+    number: zod.z.string(),
+    isSaved: zod.z.boolean().default(false),
+    categories: zod.z.array(zod.z.string()).default([]),
+    personalNotes: zod.z.array(zod.z.string()).default([]),
+    lastContacted: zod.z.number().optional(),
+    createdAt: zod.z.number(),
+    updatedAt: zod.z.number().optional()
+  })).default([]),
+  contactNotes: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    contactId: zod.z.string(),
+    title: zod.z.string(),
+    content: zod.z.string(),
+    createdAt: zod.z.number(),
+    updatedAt: zod.z.number()
+  })).default([]),
+  lastContactSync: zod.z.number().optional()
 });
 const IPC_CHANNELS = {
   // Bot control

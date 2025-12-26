@@ -13,7 +13,8 @@ JStarReplyBot supports multimodal inputs: **Images, Voice Notes, and Videos**. W
 | Type       | Trigger Condition                          | Setting Toggle        |
 |------------|--------------------------------------------|-----------------------|
 | Audio      | `mimetype.includes('audio')` or `'ogg'`    | `voiceEnabled`        |
-| Image      | `mimetype.includes('image')` or `'sticker'`| `visionEnabled`       |
+| Image      | `mimetype.includes('image')`               | `visionEnabled`       |
+| Sticker    | `msg.type === 'sticker'` (WebP)            | `visionEnabled`       |
 | Video      | `mimetype.includes('video')`               | `visionEnabled`       |
 
 ## Processing Pipeline
@@ -96,6 +97,24 @@ RESPOND BASED ON THE [TYPE] AND [INTENT]:
 
 ### Result
 The bot now correctly interprets memes as jokes and **vibes** instead of going into "computer vision mode".
+
+---
+
+## Sticker Specific Analysis (Hotfix 2025-12-26)
+
+### Problem: Animated Stickers
+Stickers in WhatsApp are often **Animated WebP**. Originally, they were handled as static images, which missed the emotional reaction or "gag" shown in the animation.
+
+### Solution: Dedicated Sticker Mode
+A new `sticker` mode was added to `multimodal.service.ts` to handle both static and animated stickers.
+
+1. **Detection:** Check `msg.type === 'sticker'` instead of mime only (as stickers are reported as `image/webp`).
+2. **Animation Awareness:** The prompt explicitly tells Gemini that the content may be animated:
+```text
+Analyze this sticker... This may be an ANIMATED sticker (like a GIF).
+If it is animated, describe what the animation shows (e.g., "character laughing and falling over").
+```
+3. **Intent-Locked:** Focuses on `[EMOTION]` and `[INTENT]` to help the bot react correctly to "reaction stickers" (e.g., sending a laughing sticker back or acknowledging a shock reaction).
 
 ---
 

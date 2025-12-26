@@ -17,7 +17,7 @@ function getGoogle() {
     return google
 }
 
-export type MediaType = 'audio' | 'image' | 'video'
+export type MediaType = 'audio' | 'image' | 'video' | 'sticker'
 
 export async function analyzeMedia(
     mode: MediaType,
@@ -36,6 +36,24 @@ export async function analyzeMedia(
             prompt = 'Transcribe this audio message exactly as spoken. If it contains a question or request, summarize the intent at the end in brackets [Intent: ...].'
         } else if (mode === 'video') {
             prompt = 'Describe this video. If there is speech, transcribe it. If there is visual action, describe it naturally.'
+        } else if (mode === 'sticker') {
+            // Stickers are often animated WebP - treat as visual content with animation awareness
+            prompt = `Analyze this sticker for conversational context. This may be an ANIMATED sticker (like a GIF).
+
+First, identify the STICKER TYPE:
+- REACTION: An emotional reaction sticker (expressing laughter, shock, approval, etc.)
+- MEME: A meme-based sticker shared for humor
+- CHARACTER: A character/mascot sticker expressing something specific
+- CUSTOM: A custom/personalized sticker
+- OTHER: Anything else
+
+Then provide:
+1. [TYPE]: One of the above
+2. [EMOTION]: What emotion or reaction is this sticker conveying? (e.g., "laughing hard", "shocked", "approval", "sarcasm")
+3. [INTENT]: Why was this sent? (e.g., "reacting to something funny", "expressing agreement", "being playful")
+
+If it's animated, describe what the animation shows (e.g., "character laughing and falling over").
+Be concise. Focus on the EMOTIONAL INTENT, not the literal visual description.`
         } else {
             prompt = `Analyze this image for conversational context. Your task is to help me respond appropriately in a chat.
 
@@ -61,6 +79,14 @@ Be concise. Focus on INTENT over literal visual description.`
             content.push({
                 type: 'image',
                 image: base64Data
+            })
+        } else if (mode === 'sticker') {
+            // Stickers (even animated WebP) can use 'image' type - Gemini supports image/webp
+            // The sticker-specific prompt handles the animation context
+            content.push({
+                type: 'image',
+                image: base64Data,
+                mimeType: cleanMime
             })
         } else {
             // Audio and Video use 'file' type

@@ -54,9 +54,104 @@ export const SettingsSchema = z.object({
     }).default({}),
 
     // Application Edition (Personal vs Business)
-    edition: z.enum(['personal', 'business', 'dev']).default('personal')
+    edition: z.enum(['personal', 'business', 'dev']).default('personal'),
+
+    // Personal Edition Features
+    personalNotes: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        content: z.string(),
+        category: z.string().optional(),
+        createdAt: z.number(),
+        updatedAt: z.number()
+    })).default([]),
+
+    contactCategories: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        color: z.string().default('#3b82f6')
+    })).default([]),
+
+    moodDetection: z.object({
+        enabled: z.boolean().default(true),
+        sensitivity: z.enum(['low', 'medium', 'high']).default('medium'),
+        autoRespond: z.boolean().default(false)
+    }).default({}),
+
+    personalAnalytics: z.object({
+        enabled: z.boolean().default(true),
+        showDailyStats: z.boolean().default(true),
+        showWeeklyStats: z.boolean().default(true),
+        showMonthlyStats: z.boolean().default(true)
+    }).default({}),
+
+    // Contact Management System
+    contacts: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        number: z.string(),
+        isSaved: z.boolean().default(false),
+        categories: z.array(z.string()).default([]),
+        personalNotes: z.array(z.string()).default([]),
+        lastContacted: z.number().optional(),
+        createdAt: z.number(),
+        updatedAt: z.number().optional()
+    })).default([]),
+
+    contactNotes: z.array(z.object({
+        id: z.string(),
+        contactId: z.string(),
+        title: z.string(),
+        content: z.string(),
+        createdAt: z.number(),
+        updatedAt: z.number()
+    })).default([]),
+    lastContactSync: z.number().optional()
 })
 export type Settings = z.infer<typeof SettingsSchema>
+
+// ============ Contact Management Types ============
+export interface Contact {
+    id: string
+    name: string
+    number: string
+    isSaved: boolean
+    categories: string[]
+    personalNotes: string[]
+    lastContacted?: number
+    createdAt: number
+    updatedAt?: number
+}
+
+export interface ContactNote {
+    id: string
+    contactId: string
+    title: string
+    content: string
+    createdAt: number
+    updatedAt: number
+}
+
+export interface ContactCategory {
+    id: string
+    name: string
+    description?: string
+    color: string
+}
+
+export interface ContactAssignment {
+    contactId: string
+    categoryIds: string[]
+}
+
+export interface ContactSearchFilter {
+    query?: string
+    categories?: string[]
+    isSaved?: boolean
+    sortBy?: 'name' | 'lastContacted' | 'createdAt'
+    sortOrder?: 'asc' | 'desc'
+}
 
 // ============ Style Profile ============
 export type EmojiLevel = 'none' | 'light' | 'moderate' | 'heavy'
@@ -209,7 +304,24 @@ export const IPC_CHANNELS = {
     // Conversation Memory
     FORGET_CONTACT: 'memory:forget-contact',
     PRUNE_MEMORY: 'memory:prune',
-    EXPORT_MEMORY: 'memory:export'
+    EXPORT_MEMORY: 'memory:export',
+
+    // Contact Management
+    GET_CONTACTS: 'contacts:get-all',
+    ADD_CONTACT: 'contacts:add',
+    UPDATE_CONTACT: 'contacts:update',
+    DELETE_CONTACT: 'contacts:delete',
+    ASSIGN_CONTACT_CATEGORIES: 'contacts:assign-categories',
+    SEARCH_CONTACTS: 'contacts:search',
+    IMPORT_CONTACTS: 'contacts:import',
+    EXPORT_CONTACTS: 'contacts:export',
+
+    // Contact Notes
+    GET_CONTACT_NOTES: 'contact-notes:get-all',
+    ADD_CONTACT_NOTE: 'contact-notes:add',
+    UPDATE_CONTACT_NOTE: 'contact-notes:update',
+    DELETE_CONTACT_NOTE: 'contact-notes:delete',
+    GET_CONTACT_NOTES_BY_CONTACT: 'contact-notes:get-by-contact'
 } as const
 
 // ============ Queue Types ============

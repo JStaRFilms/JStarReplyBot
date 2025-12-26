@@ -13,6 +13,7 @@ import { embedMessage } from './conversation-memory.service'
 interface OwnerActivity {
     ownerMessage: Message
     ownerMessageText: string
+    ownerMediaContext?: string  // Analyzed media context (image/audio/video)
     timestamp: number
     pendingCustomerMessages: Message[]
 }
@@ -33,21 +34,22 @@ export class OwnerInterceptService {
      * Called when the owner sends a message to a chat.
      * This signals that the owner is taking over the conversation.
      */
-    onOwnerMessage(chatId: string, msg: Message): void {
+    onOwnerMessage(chatId: string, msg: Message, mediaContext?: string): void {
         const existing = this.activeChats.get(chatId)
 
-        log('INFO', `[OwnerIntercept] Owner messaged ${chatId}: "${msg.body.substring(0, 50)}..."`)
+        log('INFO', `[OwnerIntercept] Owner messaged ${chatId}: "${msg.body.substring(0, 50)}..."${mediaContext ? ' [with media]' : ''}`)
 
         this.activeChats.set(chatId, {
             ownerMessage: msg,
             ownerMessageText: msg.body,
+            ownerMediaContext: mediaContext,
             timestamp: Date.now(),
             pendingCustomerMessages: existing?.pendingCustomerMessages || []
         })
 
-        // Style Learning: Persist owner message to memory
-        // This allows us to learn from how the owner actually replies
-        embedMessage(chatId, 'owner', msg.body)
+        // Style Learning: Persist owner message to memory (include media context if present)
+        const messageToEmbed = mediaContext ? `${msg.body}\n[Media: ${mediaContext}]` : msg.body
+        embedMessage(chatId, 'owner', messageToEmbed)
             .catch(err => log('ERROR', `[OwnerIntercept] Failed to embed owner message: ${err}`))
     }
 
@@ -92,12 +94,13 @@ export class OwnerInterceptService {
     /**
      * Get the owner's message for context injection into the AI prompt.
      */
-    getOwnerContext(chatId: string): { ownerMessage: string; customerMessages: string[] } | null {
+    getOwnerContext(chatId: string): { ownerMessage: string; ownerMediaContext?: string; customerMessages: string[] } | null {
         const activity = this.activeChats.get(chatId)
         if (!activity || !activity.ownerMessageText) return null
 
         return {
             ownerMessage: activity.ownerMessageText,
+            ownerMediaContext: activity.ownerMediaContext,
             customerMessages: activity.pendingCustomerMessages.map(m => m.body)
         }
     }

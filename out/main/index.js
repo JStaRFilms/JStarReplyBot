@@ -349,7 +349,54 @@ const SettingsSchema = zod.z.object({
     // Allow bot to follow up after owner
   }).default({}),
   // Application Edition (Personal vs Business)
-  edition: zod.z.enum(["personal", "business", "dev"]).default("personal")
+  edition: zod.z.enum(["personal", "business", "dev"]).default("personal"),
+  // Personal Edition Features
+  personalNotes: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    title: zod.z.string(),
+    content: zod.z.string(),
+    category: zod.z.string().optional(),
+    createdAt: zod.z.number(),
+    updatedAt: zod.z.number()
+  })).default([]),
+  contactCategories: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    name: zod.z.string(),
+    description: zod.z.string().optional(),
+    color: zod.z.string().default("#3b82f6")
+  })).default([]),
+  moodDetection: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    sensitivity: zod.z.enum(["low", "medium", "high"]).default("medium"),
+    autoRespond: zod.z.boolean().default(false)
+  }).default({}),
+  personalAnalytics: zod.z.object({
+    enabled: zod.z.boolean().default(true),
+    showDailyStats: zod.z.boolean().default(true),
+    showWeeklyStats: zod.z.boolean().default(true),
+    showMonthlyStats: zod.z.boolean().default(true)
+  }).default({}),
+  // Contact Management System
+  contacts: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    name: zod.z.string(),
+    number: zod.z.string(),
+    isSaved: zod.z.boolean().default(false),
+    categories: zod.z.array(zod.z.string()).default([]),
+    personalNotes: zod.z.array(zod.z.string()).default([]),
+    lastContacted: zod.z.number().optional(),
+    createdAt: zod.z.number(),
+    updatedAt: zod.z.number().optional()
+  })).default([]),
+  contactNotes: zod.z.array(zod.z.object({
+    id: zod.z.string(),
+    contactId: zod.z.string(),
+    title: zod.z.string(),
+    content: zod.z.string(),
+    createdAt: zod.z.number(),
+    updatedAt: zod.z.number()
+  })).default([]),
+  lastContactSync: zod.z.number().optional()
 });
 const IPC_CHANNELS = {
   // Bot control
@@ -406,7 +453,22 @@ const IPC_CHANNELS = {
   // Conversation Memory
   FORGET_CONTACT: "memory:forget-contact",
   PRUNE_MEMORY: "memory:prune",
-  EXPORT_MEMORY: "memory:export"
+  EXPORT_MEMORY: "memory:export",
+  // Contact Management
+  GET_CONTACTS: "contacts:get-all",
+  ADD_CONTACT: "contacts:add",
+  UPDATE_CONTACT: "contacts:update",
+  DELETE_CONTACT: "contacts:delete",
+  ASSIGN_CONTACT_CATEGORIES: "contacts:assign-categories",
+  SEARCH_CONTACTS: "contacts:search",
+  IMPORT_CONTACTS: "contacts:import",
+  EXPORT_CONTACTS: "contacts:export",
+  // Contact Notes
+  GET_CONTACT_NOTES: "contact-notes:get-all",
+  ADD_CONTACT_NOTE: "contact-notes:add",
+  UPDATE_CONTACT_NOTE: "contact-notes:update",
+  DELETE_CONTACT_NOTE: "contact-notes:delete",
+  GET_CONTACT_NOTES_BY_CONTACT: "contact-notes:get-by-contact"
 };
 const SEED_PROFILE = {
   name: "James's Bistro & Motors",
@@ -919,6 +981,9 @@ async function retrieveContext(query, topK = 3) {
   }
   try {
     const queryVector = await getEmbedding$1(query);
+    if (queryVector.length === 0) {
+      return [];
+    }
     const results = await table.vectorSearch(queryVector).limit(topK).toArray();
     return results.map((r) => r.text);
   } catch (error) {
@@ -1104,6 +1169,1469 @@ class StyleProfileService {
   }
 }
 const styleProfileService = new StyleProfileService();
+class MoodDetectionService {
+  static instance;
+  emotionKeywords = {};
+  _toneModifiers = {};
+  constructor() {
+    this.initializeEmotionKeywords();
+    this.initializeToneModifiers();
+  }
+  static getInstance() {
+    if (!MoodDetectionService.instance) {
+      MoodDetectionService.instance = new MoodDetectionService();
+    }
+    return MoodDetectionService.instance;
+  }
+  initializeEmotionKeywords() {
+    this.emotionKeywords = {
+      happy: [
+        "happy",
+        "joy",
+        "excited",
+        "great",
+        "awesome",
+        "amazing",
+        "wonderful",
+        "fantastic",
+        "love",
+        "like",
+        "cool",
+        "nice",
+        "perfect",
+        "best",
+        "😁",
+        "😃",
+        "😄",
+        "😊",
+        "😍",
+        "🥰",
+        "😎",
+        "🥳",
+        "🎉",
+        "🎊"
+      ],
+      sad: [
+        "sad",
+        "unhappy",
+        "depressed",
+        "down",
+        "blue",
+        "gloomy",
+        "miserable",
+        "heartbroken",
+        "tears",
+        "cry",
+        "crying",
+        "😞",
+        "😢",
+        "😭",
+        "🙁",
+        "😕"
+      ],
+      angry: [
+        "angry",
+        "mad",
+        "furious",
+        "rage",
+        "hate",
+        "annoyed",
+        "frustrated",
+        "pissed",
+        "upset",
+        "mad",
+        "😡",
+        "😠",
+        "🤬",
+        "fuming",
+        "livid"
+      ],
+      frustrated: [
+        "frustrated",
+        "stressed",
+        "overwhelmed",
+        "tired",
+        "exhausted",
+        "fed up",
+        "annoyed",
+        "irritated",
+        "impatient",
+        "why",
+        "when",
+        "still",
+        "again"
+      ],
+      neutral: [
+        "ok",
+        "fine",
+        "good",
+        "normal",
+        "average",
+        "standard",
+        "regular",
+        "usual",
+        "typical",
+        "alright",
+        "k",
+        "ok",
+        "sure",
+        "yes",
+        "no"
+      ],
+      anxious: [
+        "worried",
+        "anxious",
+        "nervous",
+        "stressed",
+        "tense",
+        "uneasy",
+        "scared",
+        "fear",
+        "afraid",
+        "concerned",
+        "😰",
+        "😟",
+        "😨",
+        "😧"
+      ],
+      surprised: [
+        "wow",
+        "oh",
+        "really",
+        "amazing",
+        "incredible",
+        "unbelievable",
+        "shocking",
+        "unexpected",
+        "😮",
+        "😯",
+        "😲",
+        "🤯"
+      ],
+      confused: [
+        "confused",
+        "lost",
+        "don't understand",
+        "what",
+        "how",
+        "why",
+        "huh",
+        "??",
+        "???",
+        "explain",
+        "clarify",
+        "🤔"
+      ]
+    };
+  }
+  initializeToneModifiers() {
+    this._toneModifiers = {
+      "positive": 1,
+      "negative": -1,
+      "neutral": 0,
+      "excited": 1.2,
+      "calm": 0.5,
+      "urgent": 0.8,
+      "casual": 0.3
+    };
+  }
+  /**
+   * Analyze message text for emotional content
+   */
+  async detectMood(message, contactId) {
+    const settings = await getSettings();
+    if (!settings.moodDetection.enabled) {
+      return {
+        emotion: "neutral",
+        confidence: 0.5,
+        tone: "neutral",
+        keywords: [],
+        suggestions: []
+      };
+    }
+    const text = message.toLowerCase();
+    const words = this.tokenizeText(text);
+    const emotionScores = this.calculateEmotionScores(words);
+    const dominantEmotion = this.findDominantEmotion(emotionScores);
+    const confidence = emotionScores[dominantEmotion] || 0.5;
+    const tone = this.calculateTone(text, emotionScores);
+    const keywords = this.extractKeywords(text, dominantEmotion);
+    const suggestions = this.generateSuggestions(dominantEmotion, tone, text);
+    log("INFO", `Mood detected: ${dominantEmotion} (${confidence.toFixed(2)}) for contact ${contactId || "unknown"}`);
+    return {
+      emotion: dominantEmotion,
+      confidence,
+      tone,
+      keywords,
+      suggestions
+    };
+  }
+  /**
+   * Get mood profile for a contact
+   */
+  async getMoodProfile(contactId) {
+    return {
+      id: contactId,
+      contactId,
+      emotions: {
+        happy: 0.3,
+        sad: 0.1,
+        angry: 0.2,
+        neutral: 0.4
+      },
+      lastUpdated: Date.now(),
+      averageTone: "neutral"
+    };
+  }
+  /**
+   * Update mood profile with new detection
+   */
+  async updateMoodProfile(contactId, result) {
+    log("INFO", `Updated mood profile for ${contactId}: ${result.emotion}`);
+  }
+  /**
+   * Get response tone adjustment based on detected mood
+   */
+  getResponseToneAdjustment(detectedMood) {
+    const { emotion, confidence, tone: _tone } = detectedMood;
+    let responseTone = "professional";
+    const adjustments = [];
+    if (confidence > 0.7) {
+      switch (emotion) {
+        case "happy":
+        case "excited":
+          responseTone = "enthusiastic";
+          adjustments.push("Match their energy level");
+          adjustments.push("Use positive language");
+          break;
+        case "sad":
+        case "depressed":
+          responseTone = "empathetic";
+          adjustments.push("Be gentle and understanding");
+          adjustments.push("Avoid overly cheerful language");
+          adjustments.push("Offer support");
+          break;
+        case "angry":
+        case "frustrated":
+          responseTone = "empathetic";
+          adjustments.push("Stay calm and professional");
+          adjustments.push("Acknowledge their feelings");
+          adjustments.push("Avoid defensive language");
+          break;
+        case "anxious":
+          responseTone = "empathetic";
+          adjustments.push("Provide clear, reassuring information");
+          adjustments.push("Avoid overwhelming details");
+          break;
+        case "neutral":
+          responseTone = "professional";
+          adjustments.push("Maintain standard tone");
+          break;
+        default:
+          responseTone = "professional";
+      }
+    } else {
+      responseTone = "professional";
+      adjustments.push("Low confidence in mood detection");
+      adjustments.push("Use neutral, professional tone");
+    }
+    return { tone: responseTone, adjustments };
+  }
+  tokenizeText(text) {
+    const cleanText = text.replace(/[^\w\s]/g, " ").toLowerCase();
+    return cleanText.split(/\s+/).filter((word) => word.length > 0);
+  }
+  calculateEmotionScores(words) {
+    const scores = {};
+    for (const [emotion, keywords] of Object.entries(this.emotionKeywords)) {
+      let score = 0;
+      for (const word of words) {
+        if (keywords.includes(word)) {
+          score += 1;
+        }
+      }
+      scores[emotion] = Math.min(score / Math.max(words.length, 1), 1);
+    }
+    return scores;
+  }
+  findDominantEmotion(scores) {
+    let dominant = "neutral";
+    let maxScore = 0;
+    for (const [emotion, score] of Object.entries(scores)) {
+      if (score > maxScore) {
+        maxScore = score;
+        dominant = emotion;
+      }
+    }
+    return dominant;
+  }
+  calculateTone(text, emotionScores) {
+    if (text.includes("!") && (emotionScores.happy || 0) > 0.3) return "positive";
+    if (text.includes("??") || text.includes("???")) return "negative";
+    if (text.includes("thank") || text.includes("please")) return "positive";
+    if (text.includes("sorry") || text.includes("apologize")) return "negative";
+    const positiveEmotions = ["happy", "excited", "amazing", "love", "great"];
+    const negativeEmotions = ["sad", "angry", "frustrated", "hate", "bad"];
+    let positiveScore = 0;
+    let negativeScore = 0;
+    for (const emotion of positiveEmotions) {
+      positiveScore += emotionScores[emotion] || 0;
+    }
+    for (const emotion of negativeEmotions) {
+      negativeScore += emotionScores[emotion] || 0;
+    }
+    if (positiveScore > negativeScore) return "positive";
+    if (negativeScore > positiveScore) return "negative";
+    return "neutral";
+  }
+  extractKeywords(text, emotion) {
+    const keywords = this.emotionKeywords[emotion] || [];
+    const foundKeywords = [];
+    for (const keyword of keywords) {
+      if (text.toLowerCase().includes(keyword)) {
+        foundKeywords.push(keyword);
+      }
+    }
+    return foundKeywords.slice(0, 5);
+  }
+  generateSuggestions(emotion, _tone, text) {
+    const suggestions = [];
+    switch (emotion) {
+      case "happy":
+        suggestions.push("Acknowledge their positive mood");
+        suggestions.push("Keep the conversation upbeat");
+        break;
+      case "sad":
+        suggestions.push("Show empathy and understanding");
+        suggestions.push("Avoid overly cheerful responses");
+        break;
+      case "angry":
+        suggestions.push("Stay calm and professional");
+        suggestions.push("Address their concerns directly");
+        break;
+      case "frustrated":
+        suggestions.push("Provide clear, concise answers");
+        suggestions.push("Avoid adding to their frustration");
+        break;
+      case "anxious":
+        suggestions.push("Provide reassurance");
+        suggestions.push("Keep responses simple and clear");
+        break;
+      default:
+        suggestions.push("Maintain professional tone");
+    }
+    if (text.includes("help")) {
+      suggestions.push("Offer specific assistance");
+    }
+    if (text.includes("when") || text.includes("time")) {
+      suggestions.push("Provide clear timeline information");
+    }
+    if (text.includes("why")) {
+      suggestions.push("Explain the reasoning clearly");
+    }
+    return suggestions;
+  }
+}
+const moodDetectionService = MoodDetectionService.getInstance();
+class AnalyticsService {
+  static instance;
+  messageHistory = [];
+  MAX_HISTORY_SIZE = 1e4;
+  constructor() {
+  }
+  static getInstance() {
+    if (!AnalyticsService.instance) {
+      AnalyticsService.instance = new AnalyticsService();
+    }
+    return AnalyticsService.instance;
+  }
+  /**
+   * Track a message sent or received
+   */
+  async trackMessage(messageId, direction, contactId, contactName, messageText, wasAutoReplied = false, replyText) {
+    const settings = await getSettings();
+    if (!settings.personalAnalytics.enabled) {
+      return;
+    }
+    const now = Date.now();
+    const messageLength = messageText ? messageText.length : 0;
+    const analyticsEntry = {
+      messageId,
+      timestamp: now,
+      direction,
+      contactId,
+      contactName,
+      messageLength,
+      wasAutoReplied,
+      replyText
+    };
+    if (direction === "sent" && messageText) {
+      const receivedMessage = this.messageHistory.filter((m) => m.direction === "received" && m.contactId === contactId).sort((a, b) => b.timestamp - a.timestamp)[0];
+      if (receivedMessage) {
+        analyticsEntry.responseTime = now - receivedMessage.timestamp;
+      }
+    }
+    this.messageHistory.push(analyticsEntry);
+    if (this.messageHistory.length > this.MAX_HISTORY_SIZE) {
+      this.messageHistory = this.messageHistory.slice(-this.MAX_HISTORY_SIZE);
+    }
+    if (direction === "sent") {
+      await incrementStats({ messagesSent: 1 });
+      const timeSaved = this.calculateTimeSaved(messageLength, wasAutoReplied);
+      await incrementStats({ timeSavedMinutes: timeSaved });
+    }
+    log("INFO", `Tracked ${direction} message for ${contactId} (${messageLength} chars)`);
+  }
+  /**
+   * Get comprehensive analytics data
+   */
+  async getAnalytics() {
+    const settings = await getSettings();
+    if (!settings.personalAnalytics.enabled) {
+      return this.getEmptyMetrics();
+    }
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1e3;
+    const oneWeek = 7 * oneDay;
+    const oneMonth = 30 * oneDay;
+    const dailyData = this.calculateAnalyticsForPeriod(now - oneDay, now);
+    const weeklyData = this.calculateAnalyticsForPeriod(now - oneWeek, now);
+    const monthlyData = this.calculateAnalyticsForPeriod(now - oneMonth, now);
+    const allTimeData = this.calculateAnalyticsForPeriod(0, now);
+    return {
+      daily: dailyData,
+      weekly: weeklyData,
+      monthly: monthlyData,
+      allTime: allTimeData
+    };
+  }
+  /**
+   * Get specific analytics for a time period
+   */
+  getAnalyticsForPeriod(startDate, endDate) {
+    const start = startDate.getTime();
+    const end = endDate.getTime();
+    return this.calculateAnalyticsForPeriod(start, end);
+  }
+  /**
+   * Export analytics data
+   */
+  async exportAnalytics(format) {
+    const analytics = await this.getAnalytics();
+    if (format === "json") {
+      return JSON.stringify(analytics, null, 2);
+    } else {
+      return this.convertToCSV(analytics);
+    }
+  }
+  /**
+   * Get message history for analysis
+   */
+  getMessageHistory(limit = 1e3) {
+    return this.messageHistory.slice(-limit);
+  }
+  /**
+   * Clear analytics data
+   */
+  async clearAnalytics() {
+    this.messageHistory = [];
+    log("INFO", "Analytics data cleared");
+  }
+  calculateAnalyticsForPeriod(start, end) {
+    const periodMessages = this.messageHistory.filter(
+      (m) => m.timestamp >= start && m.timestamp <= end
+    );
+    const sentMessages = periodMessages.filter((m) => m.direction === "sent");
+    const receivedMessages = periodMessages.filter((m) => m.direction === "received");
+    const messagesSent = sentMessages.length;
+    const messagesReceived = receivedMessages.length;
+    const timeSavedMinutes = sentMessages.reduce((total, m) => total + (m.responseTime || 0) / 6e4, 0);
+    const responseTimes = sentMessages.map((m) => m.responseTime).filter(Boolean);
+    const averageResponseTime = responseTimes.length > 0 ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length : 0;
+    const engagementRate = messagesReceived > 0 ? messagesSent / messagesReceived * 100 : 0;
+    const moodDistribution = this.calculateMoodDistribution(periodMessages);
+    const peakUsageHours = this.calculatePeakUsageHours(periodMessages);
+    const contactCategories = this.calculateContactCategories(periodMessages);
+    const responsePatterns = this.calculateResponsePatterns(sentMessages);
+    return {
+      messagesSent,
+      messagesReceived,
+      timeSavedMinutes,
+      averageResponseTime,
+      engagementRate,
+      moodDistribution,
+      peakUsageHours,
+      contactCategories,
+      responsePatterns
+    };
+  }
+  calculateMoodDistribution(messages) {
+    const moodCounts = {};
+    for (const message of messages) {
+      if (message.mood) {
+        moodCounts[message.mood] = (moodCounts[message.mood] || 0) + 1;
+      }
+    }
+    return moodCounts;
+  }
+  calculatePeakUsageHours(messages) {
+    const hourCounts = {};
+    for (const message of messages) {
+      const hour = new Date(message.timestamp).getHours();
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    }
+    const sortedHours = Object.entries(hourCounts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([hour]) => parseInt(hour));
+    return sortedHours;
+  }
+  calculateContactCategories(messages) {
+    const categoryCounts = {};
+    for (const message of messages) {
+      const category = message.category || "uncategorized";
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    }
+    return categoryCounts;
+  }
+  calculateResponsePatterns(sentMessages) {
+    const quickThreshold = 5 * 60 * 1e3;
+    const delayedThreshold = 30 * 60 * 1e3;
+    let quickReplies = 0;
+    let delayedReplies = 0;
+    let noReplies = 0;
+    for (const message of sentMessages) {
+      if (message.responseTime) {
+        if (message.responseTime <= quickThreshold) {
+          quickReplies++;
+        } else if (message.responseTime <= delayedThreshold) {
+          delayedReplies++;
+        }
+      } else {
+        noReplies++;
+      }
+    }
+    return { quickReplies, delayedReplies, noReplies };
+  }
+  calculateTimeSaved(messageLength, wasAutoReplied) {
+    if (!wasAutoReplied) return 0;
+    const baseTimePerChar = 0.1;
+    const complexityMultiplier = messageLength > 100 ? 1.5 : 1;
+    const estimatedTime = messageLength * baseTimePerChar * complexityMultiplier / 60;
+    return Math.max(estimatedTime, 0.1);
+  }
+  getEmptyMetrics() {
+    const emptyData = {
+      messagesSent: 0,
+      messagesReceived: 0,
+      timeSavedMinutes: 0,
+      averageResponseTime: 0,
+      engagementRate: 0,
+      moodDistribution: {},
+      peakUsageHours: [],
+      contactCategories: {},
+      responsePatterns: {
+        quickReplies: 0,
+        delayedReplies: 0,
+        noReplies: 0
+      }
+    };
+    return {
+      daily: emptyData,
+      weekly: emptyData,
+      monthly: emptyData,
+      allTime: emptyData
+    };
+  }
+  convertToCSV(metrics) {
+    const headers = [
+      "Period",
+      "Messages Sent",
+      "Messages Received",
+      "Time Saved (min)",
+      "Avg Response Time (ms)",
+      "Engagement Rate (%)",
+      "Peak Hours",
+      "Mood Distribution"
+    ];
+    const rows = [
+      headers.join(","),
+      this.formatCSVRow("Daily", metrics.daily),
+      this.formatCSVRow("Weekly", metrics.weekly),
+      this.formatCSVRow("Monthly", metrics.monthly),
+      this.formatCSVRow("All Time", metrics.allTime)
+    ];
+    return rows.join("\n");
+  }
+  formatCSVRow(period, data) {
+    const peakHours = Object.values(data.peakUsageHours).join("-");
+    const moodDist = Object.entries(data.moodDistribution).map(([mood, count]) => `${mood}:${count}`).join("|");
+    return [
+      period,
+      data.messagesSent,
+      data.messagesReceived,
+      data.timeSavedMinutes.toFixed(2),
+      data.averageResponseTime.toFixed(2),
+      data.engagementRate.toFixed(2),
+      peakHours,
+      moodDist
+    ].join(",");
+  }
+}
+const analyticsService = AnalyticsService.getInstance();
+class ContactManagementService {
+  static instance;
+  constructor() {
+  }
+  static getInstance() {
+    if (!ContactManagementService.instance) {
+      ContactManagementService.instance = new ContactManagementService();
+    }
+    return ContactManagementService.instance;
+  }
+  /**
+   * Get all contacts
+   */
+  async getContacts() {
+    const settings = await getSettings();
+    return settings.contacts || [];
+  }
+  /**
+   * Load contacts from WhatsApp Web client
+   */
+  async loadWhatsAppContacts() {
+    try {
+      const { whatsappClient } = await Promise.resolve().then(() => index);
+      if (!whatsappClient || whatsappClient.getStatus() !== "connected") {
+        log("WARN", "WhatsApp client not connected, cannot load contacts");
+        return { loaded: 0, skipped: 0 };
+      }
+      const waContacts = await whatsappClient?.getContacts() || [];
+      const settings = await getSettings();
+      const existingContacts = settings.contacts || [];
+      let loaded = 0;
+      let skipped = 0;
+      for (const waContact of waContacts) {
+        if (waContact.isGroup || waContact.isWAContact === false) {
+          skipped++;
+          continue;
+        }
+        const contactData = {
+          name: waContact.name || waContact.pushname || waContact.number || "Unknown",
+          number: waContact.number || waContact.id.user,
+          isSaved: waContact.isMyContact || false,
+          categories: [],
+          personalNotes: []
+        };
+        const exists = existingContacts.find((c) => c.number === contactData.number);
+        if (exists) {
+          skipped++;
+          continue;
+        }
+        const contact = {
+          ...contactData,
+          id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: Date.now()
+        };
+        existingContacts.push(contact);
+        loaded++;
+      }
+      settings.contacts = existingContacts;
+      settings.lastContactSync = Date.now();
+      await saveSettings(settings);
+      log("INFO", `Loaded ${loaded} contacts from WhatsApp, skipped ${skipped}`);
+      return { loaded, skipped };
+    } catch (error) {
+      log("ERROR", `Failed to load WhatsApp contacts: ${error}`);
+      return { loaded: 0, skipped: 0 };
+    }
+  }
+  /**
+   * Create test contacts for development
+   */
+  async createTestContacts() {
+    try {
+      const settings = await getSettings();
+      const existingContacts = settings.contacts || [];
+      let created = 0;
+      const testContacts = [
+        {
+          name: "John Doe",
+          number: "+1234567890",
+          isSaved: true,
+          categories: [],
+          personalNotes: ["Regular customer", "Prefers email communication"]
+        },
+        {
+          name: "Jane Smith",
+          number: "+1234567891",
+          isSaved: false,
+          categories: [],
+          personalNotes: ["New customer", "Interested in premium features"]
+        },
+        {
+          name: "Bob Johnson",
+          number: "+1234567892",
+          isSaved: true,
+          categories: [],
+          personalNotes: ["VIP customer", "High priority"]
+        },
+        {
+          name: "Alice Brown",
+          number: "+1234567893",
+          isSaved: false,
+          categories: [],
+          personalNotes: ["Potential lead", "Follow up needed"]
+        },
+        {
+          name: "Charlie Wilson",
+          number: "+1234567894",
+          isSaved: true,
+          categories: [],
+          personalNotes: ["Technical support", "Needs assistance"]
+        }
+      ];
+      for (const contactData of testContacts) {
+        const exists = existingContacts.find((c) => c.number === contactData.number);
+        if (exists) {
+          continue;
+        }
+        const contact = {
+          ...contactData,
+          id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: Date.now()
+        };
+        existingContacts.push(contact);
+        created++;
+      }
+      settings.contacts = existingContacts;
+      await saveSettings(settings);
+      log("INFO", `Created ${created} test contacts`);
+      return { created };
+    } catch (error) {
+      log("ERROR", `Failed to create test contacts: ${error}`);
+      return { created: 0 };
+    }
+  }
+  /**
+   * Get contact by ID
+   */
+  async getContactById(id) {
+    const contacts = await this.getContacts();
+    return contacts.find((contact) => contact.id === id) || null;
+  }
+  /**
+   * Get contact by phone number
+   */
+  async getContactByNumber(number) {
+    const contacts = await this.getContacts();
+    return contacts.find((contact) => contact.number === number) || null;
+  }
+  /**
+   * Add a new contact
+   */
+  async addContact(contactData) {
+    const settings = await getSettings();
+    const contact = {
+      ...contactData,
+      id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: Date.now()
+    };
+    settings.contacts = [...settings.contacts || [], contact];
+    await saveSettings(settings);
+    log("INFO", `Added contact: ${contact.name} (${contact.number})`);
+    return contact;
+  }
+  /**
+   * Update an existing contact
+   */
+  async updateContact(id, updates) {
+    const settings = await getSettings();
+    const contactIndex = settings.contacts.findIndex((c) => c.id === id);
+    if (contactIndex === -1) {
+      return null;
+    }
+    const currentContact = settings.contacts[contactIndex];
+    if (!currentContact) return null;
+    const updatedContact = {
+      ...currentContact,
+      ...updates,
+      updatedAt: Date.now()
+    };
+    settings.contacts[contactIndex] = updatedContact;
+    await saveSettings(settings);
+    log("INFO", `Updated contact: ${updatedContact.name}`);
+    return updatedContact;
+  }
+  /**
+   * Delete a contact
+   */
+  async deleteContact(id) {
+    const settings = await getSettings();
+    const contactIndex = settings.contacts.findIndex((c) => c.id === id);
+    if (contactIndex === -1) {
+      return false;
+    }
+    settings.contactNotes = settings.contactNotes.filter((note) => note.contactId !== id);
+    settings.contactCategories = settings.contactCategories.map((category) => ({
+      ...category
+    }));
+    settings.contacts.splice(contactIndex, 1);
+    await saveSettings(settings);
+    log("INFO", `Deleted contact: ${id}`);
+    return true;
+  }
+  /**
+   * Search contacts with filters
+   */
+  async searchContacts(filter) {
+    const contacts = await this.getContacts();
+    let filtered = contacts.filter((contact) => {
+      if (filter.query) {
+        const searchLower = filter.query.toLowerCase();
+        const matchesText = contact.name.toLowerCase().includes(searchLower) || contact.number.includes(searchLower);
+        if (!matchesText) return false;
+      }
+      if (filter.categories && filter.categories.length > 0) {
+        const hasCategory = contact.categories.some(
+          (catId) => filter.categories.includes(catId)
+        );
+        if (!hasCategory) return false;
+      }
+      if (filter.isSaved !== void 0) {
+        if (contact.isSaved !== filter.isSaved) return false;
+      }
+      return true;
+    });
+    if (filter.sortBy) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+        switch (filter.sortBy) {
+          case "name":
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case "lastContacted":
+            aValue = a.lastContacted || 0;
+            bValue = b.lastContacted || 0;
+            break;
+          case "createdAt":
+            aValue = a.createdAt;
+            bValue = b.createdAt;
+            break;
+          default:
+            return 0;
+        }
+        if (aValue < bValue) return filter.sortOrder === "asc" ? -1 : 1;
+        if (aValue > bValue) return filter.sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return filtered;
+  }
+  /**
+   * Assign categories to a contact
+   */
+  async assignCategories(contactId, categoryIds) {
+    const settings = await getSettings();
+    const contactIndex = settings.contacts.findIndex((c) => c.id === contactId);
+    if (contactIndex === -1) {
+      return false;
+    }
+    const validCategories = settings.contactCategories.filter(
+      (cat) => categoryIds.includes(cat.id)
+    );
+    if (validCategories.length !== categoryIds.length) {
+      log("WARN", "Some categories do not exist");
+      return false;
+    }
+    const contact = settings.contacts[contactIndex];
+    if (!contact) return false;
+    contact.categories = [...new Set(categoryIds)];
+    await saveSettings(settings);
+    log("INFO", `Assigned ${categoryIds.length} categories to contact: ${contact.name}`);
+    return true;
+  }
+  /**
+   * Batch assign categories using comma-separated input
+   */
+  async batchAssignCategories(categoryIds, contactNumbers) {
+    const settings = await getSettings();
+    let success = 0;
+    let failed = 0;
+    const validCategories = settings.contactCategories.filter(
+      (cat) => categoryIds.includes(cat.id)
+    );
+    if (validCategories.length !== categoryIds.length) {
+      log("WARN", "Some categories do not exist");
+      return { success: 0, failed: contactNumbers.length };
+    }
+    for (const number of contactNumbers) {
+      const contact = settings.contacts.find((c) => c.number === number);
+      if (contact) {
+        contact.categories = [.../* @__PURE__ */ new Set([...contact.categories, ...categoryIds])];
+        success++;
+      } else {
+        failed++;
+      }
+    }
+    await saveSettings(settings);
+    log("INFO", `Batch assigned categories: ${success} success, ${failed} failed`);
+    return { success, failed };
+  }
+  /**
+   * Get contacts by category
+   */
+  async getContactsByCategory(categoryId) {
+    const contacts = await this.getContacts();
+    return contacts.filter((contact) => contact.categories.includes(categoryId));
+  }
+  /**
+   * Update last contacted timestamp
+   */
+  async updateLastContacted(contactId) {
+    const settings = await getSettings();
+    const contact = settings.contacts.find((c) => c.id === contactId);
+    if (contact) {
+      contact.lastContacted = Date.now();
+      await saveSettings(settings);
+    }
+  }
+  /**
+   * Import contacts from array
+   */
+  async importContacts(contacts) {
+    const settings = await getSettings();
+    let imported = 0;
+    let skipped = 0;
+    for (const contactData of contacts) {
+      const existing = settings.contacts.find((c) => c.number === contactData.number);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      const contact = {
+        ...contactData,
+        id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: Date.now()
+      };
+      settings.contacts.push(contact);
+      imported++;
+    }
+    await saveSettings(settings);
+    log("INFO", `Imported contacts: ${imported} imported, ${skipped} skipped`);
+    return { imported, skipped };
+  }
+  /**
+   * Export contacts to array
+   */
+  async exportContacts() {
+    return await this.getContacts();
+  }
+  /**
+   * Get all contact notes
+   */
+  async getContactNotes() {
+    const settings = await getSettings();
+    return settings.contactNotes || [];
+  }
+  /**
+   * Get contact notes by contact ID
+   */
+  async getContactNotesByContact(contactId) {
+    const notes = await this.getContactNotes();
+    return notes.filter((note) => note.contactId === contactId);
+  }
+  /**
+   * Add a contact note
+   */
+  async addContactNote(noteData) {
+    const settings = await getSettings();
+    const note = {
+      ...noteData,
+      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    settings.contactNotes = [...settings.contactNotes || [], note];
+    await saveSettings(settings);
+    log("INFO", `Added note for contact: ${note.contactId} `);
+    return note;
+  }
+  /**
+   * Update a contact note
+   */
+  async updateContactNote(id, updates) {
+    const settings = await getSettings();
+    const noteIndex = settings.contactNotes.findIndex((n) => n.id === id);
+    if (noteIndex === -1) {
+      return null;
+    }
+    const currentNote = settings.contactNotes[noteIndex];
+    if (!currentNote) return null;
+    const updatedNote = {
+      ...currentNote,
+      ...updates,
+      updatedAt: Date.now()
+    };
+    settings.contactNotes[noteIndex] = updatedNote;
+    await saveSettings(settings);
+    log("INFO", `Updated note: ${updatedNote.title} `);
+    return updatedNote;
+  }
+  /**
+   * Delete a contact note
+   */
+  async deleteContactNote(id) {
+    const settings = await getSettings();
+    const noteIndex = settings.contactNotes.findIndex((n) => n.id === id);
+    if (noteIndex === -1) {
+      return false;
+    }
+    settings.contactNotes.splice(noteIndex, 1);
+    await saveSettings(settings);
+    log("INFO", `Deleted note: ${id} `);
+    return true;
+  }
+  /**
+   * Sync contacts from WhatsApp (called when new messages arrive)
+   */
+  async syncContactFromWhatsApp(contactData) {
+    const existing = await this.getContactByNumber(contactData.number);
+    if (existing) {
+      return await this.updateContact(existing.id, {
+        name: contactData.name,
+        isSaved: contactData.isSaved
+      });
+    } else {
+      return await this.addContact({
+        name: contactData.name,
+        number: contactData.number,
+        isSaved: contactData.isSaved,
+        categories: [],
+        personalNotes: []
+      });
+    }
+  }
+  /**
+   * Get contact statistics
+   */
+  async getContactStats() {
+    const contacts = await this.getContacts();
+    const categories = await this.getContactCategories();
+    const stats = {
+      total: contacts.length,
+      saved: contacts.filter((c) => c.isSaved).length,
+      unsaved: contacts.filter((c) => !c.isSaved).length,
+      byCategory: {}
+    };
+    for (const category of categories) {
+      stats.byCategory[category.name] = contacts.filter(
+        (c) => c.categories.includes(category.id)
+      ).length;
+    }
+    return stats;
+  }
+  /**
+   * Get all contact categories
+   */
+  async getContactCategories() {
+    const settings = await getSettings();
+    return settings.contactCategories || [];
+  }
+  /**
+   * Add a new contact category
+   */
+  async addContactCategory(categoryData) {
+    const settings = await getSettings();
+    const category = {
+      ...categoryData,
+      id: `category_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `
+    };
+    settings.contactCategories = [...settings.contactCategories || [], category];
+    await saveSettings(settings);
+    log("INFO", `Added contact category: ${category.name} `);
+    return category;
+  }
+  /**
+   * Update a contact category
+   */
+  async updateContactCategory(id, updates) {
+    const settings = await getSettings();
+    const categoryIndex = settings.contactCategories.findIndex((c) => c.id === id);
+    if (categoryIndex === -1) {
+      return null;
+    }
+    const currentCategory = settings.contactCategories[categoryIndex];
+    if (!currentCategory) return null;
+    const updatedCategory = {
+      ...currentCategory,
+      ...updates
+    };
+    settings.contactCategories[categoryIndex] = updatedCategory;
+    await saveSettings(settings);
+    log("INFO", `Updated category: ${updatedCategory.name} `);
+    return updatedCategory;
+  }
+  /**
+   * Delete a contact category
+   */
+  async deleteContactCategory(id) {
+    const settings = await getSettings();
+    const categoryIndex = settings.contactCategories.findIndex((c) => c.id === id);
+    if (categoryIndex === -1) {
+      return false;
+    }
+    settings.contacts = settings.contacts.map((contact) => ({
+      ...contact,
+      categories: contact.categories.filter((catId) => catId !== id)
+    }));
+    settings.contactCategories.splice(categoryIndex, 1);
+    await saveSettings(settings);
+    log("INFO", `Deleted category: ${id} `);
+    return true;
+  }
+  /**
+   * Debug: Get contact system status
+   */
+  async getContactSystemStatus() {
+    const settings = await getSettings();
+    const contacts = settings.contacts || [];
+    const notes = settings.contactNotes || [];
+    const categories = settings.contactCategories || [];
+    const hasTestContacts = contacts.some(
+      (c) => c.personalNotes.some(
+        (note) => note.includes("test") || note.includes("Test") || note.includes("regular customer") || note.includes("new customer")
+      )
+    );
+    let whatsappConnected = false;
+    try {
+      const { whatsappClient } = await Promise.resolve().then(() => index);
+      whatsappConnected = whatsappClient !== null && whatsappClient.getStatus() === "connected";
+    } catch (error) {
+      log("DEBUG", "Could not check WhatsApp connection status");
+    }
+    return {
+      totalContacts: contacts.length,
+      totalNotes: notes.length,
+      totalCategories: categories.length,
+      lastSyncTime: settings.lastContactSync,
+      hasTestContacts,
+      whatsappConnected
+    };
+  }
+  /**
+   * Debug: Get detailed contact information
+   */
+  async getContactDebugInfo(contactId) {
+    const contact = await this.getContactById(contactId);
+    const notes = await this.getContactNotesByContact(contactId);
+    const settings = await getSettings();
+    const categories = settings.contactCategories || [];
+    const contactCategories = categories.filter(
+      (cat) => contact?.categories.includes(cat.id)
+    );
+    let aiContext = null;
+    try {
+      const { getRecentHistory: getRecentHistory2, recallMemory: recallMemory2 } = await Promise.resolve().then(() => conversationMemory_service);
+      if (contact) {
+        const recentHistory = await getRecentHistory2(contact.number, 5);
+        const semanticMemory = await recallMemory2(contact.number, "debug", 3);
+        aiContext = {
+          recentHistory,
+          semanticMemory,
+          hasMemory: recentHistory.length > 0 || semanticMemory.length > 0
+        };
+      }
+    } catch (error) {
+      log("DEBUG", "Could not fetch AI context for contact");
+    }
+    return {
+      contact,
+      notes,
+      categories: contactCategories,
+      aiContext
+    };
+  }
+  /**
+   * Clear all contacts (for testing)
+   */
+  async clearAllContacts() {
+    try {
+      const settings = await getSettings();
+      settings.contacts = [];
+      settings.contactNotes = [];
+      await saveSettings(settings);
+      log("INFO", "Cleared all contacts and notes");
+      return true;
+    } catch (error) {
+      log("ERROR", `Failed to clear contacts: ${error}`);
+      return false;
+    }
+  }
+}
+class PersonalContextService {
+  static instance;
+  contextCache = /* @__PURE__ */ new Map();
+  CACHE_TTL = 5 * 60 * 1e3;
+  // 5 minutes
+  contactManagementService;
+  constructor() {
+    this.contactManagementService = ContactManagementService.getInstance();
+  }
+  static getInstance() {
+    if (!PersonalContextService.instance) {
+      PersonalContextService.instance = new PersonalContextService();
+    }
+    return PersonalContextService.instance;
+  }
+  /**
+   * Get enriched personal context for a contact
+   */
+  async getPersonalContext(contactId, contactName, messageText) {
+    const settings = await getSettings();
+    if (!settings.edition || settings.edition === "business") {
+      return null;
+    }
+    const cached = this.contextCache.get(contactId);
+    if (cached && Date.now() - cached.conversationHistory.lastMessage.length < this.CACHE_TTL) {
+      return cached;
+    }
+    const contact = await this.contactManagementService.getContactById(contactId);
+    const contactNotes = await this.contactManagementService.getContactNotesByContact(contactId);
+    const personalContext = {
+      contactId,
+      contactName: contactName || contact?.name,
+      category: this.getContactCategory(contact),
+      personalNotes: this.getPersonalNotes(contactId, settings.personalNotes),
+      contactNotes: contactNotes.map((note) => `${note.title}: ${note.content}`),
+      moodProfile: await this.getMoodProfile(contactId),
+      responsePreferences: this.getResponsePreferences(contactId, settings),
+      conversationHistory: this.getConversationHistory(contactId, messageText)
+    };
+    this.contextCache.set(contactId, personalContext);
+    return personalContext;
+  }
+  /**
+   * Enrich AI prompt with personal context
+   */
+  async enrichPrompt(contactId, contactName, messageText, basePrompt) {
+    const context = await this.getPersonalContext(contactId, contactName, messageText);
+    if (!context) {
+      return basePrompt;
+    }
+    const enrichment = this.buildContextEnrichment(context, messageText);
+    const enrichedPrompt = `${basePrompt}
+
+--- PERSONAL CONTEXT ---
+${enrichment.personalNotes}
+${enrichment.contactNotes}
+${enrichment.contactCategory}
+${enrichment.moodContext}
+${enrichment.responseGuidance}
+${enrichment.conversationMemory}
+--- END PERSONAL CONTEXT ---
+
+IMPORTANT: Use this personal context to make your response more relevant and personalized. Consider the contact's category, mood, and preferences when crafting your reply.`;
+    return enrichedPrompt;
+  }
+  /**
+   * Update personal context with new interaction
+   */
+  async updatePersonalContext(contactId, contactName, messageText, responseText) {
+    const settings = await getSettings();
+    if (!settings.edition || settings.edition === "business") {
+      return;
+    }
+    const moodResult = await moodDetectionService.detectMood(messageText, contactId);
+    await moodDetectionService.updateMoodProfile(contactId, moodResult);
+    await this.contactManagementService.updateLastContacted(contactId);
+    const cached = this.contextCache.get(contactId);
+    if (cached) {
+      cached.conversationHistory.lastMessage = messageText;
+      cached.conversationHistory.lastResponse = responseText;
+      cached.conversationHistory.topics = this.extractTopics(messageText, responseText);
+      cached.conversationHistory.sentimentTrend = this.calculateSentimentTrend(cached.conversationHistory);
+      cached.moodProfile = {
+        dominantEmotion: moodResult.emotion,
+        averageTone: moodResult.tone,
+        lastUpdated: Date.now()
+      };
+    }
+    log("INFO", `Updated personal context for ${contactName || contactId}`);
+  }
+  /**
+   * Get response tone adjustment based on personal context
+   */
+  getResponseToneAdjustment(context) {
+    if (!context) {
+      return { tone: "professional", adjustments: [] };
+    }
+    const { moodProfile, responsePreferences, category } = context;
+    let tone = responsePreferences.preferredTone;
+    const adjustments = [];
+    if (moodProfile) {
+      const moodAdjustment = this.getMoodBasedToneAdjustment(moodProfile.dominantEmotion);
+      if (moodAdjustment) {
+        tone = moodAdjustment;
+        adjustments.push(`Adjust tone for ${moodProfile.dominantEmotion} mood`);
+      }
+    }
+    if (category) {
+      const categoryAdjustment = this.getCategoryBasedToneAdjustment(category);
+      if (categoryAdjustment) {
+        adjustments.push(`Consider ${category} relationship context`);
+      }
+    }
+    if (responsePreferences.emojiPreference === "none") {
+      adjustments.push("Avoid using emojis");
+    } else if (responsePreferences.emojiPreference === "heavy") {
+      adjustments.push("Use emojis liberally");
+    }
+    if (responsePreferences.responseLength === "short") {
+      adjustments.push("Keep response concise");
+    } else if (responsePreferences.responseLength === "long") {
+      adjustments.push("Provide detailed response");
+    }
+    return { tone, adjustments };
+  }
+  /**
+   * Clear personal context cache
+   */
+  clearCache() {
+    this.contextCache.clear();
+    log("INFO", "Personal context cache cleared");
+  }
+  getContactCategory(contact) {
+    if (!contact || !contact.categories || contact.categories.length === 0) {
+      return "General";
+    }
+    return contact.categories.join(", ");
+  }
+  getPersonalNotes(contactId, notes) {
+    return notes.filter((note) => note.content.toLowerCase().includes(contactId.toLowerCase()) || note.title.toLowerCase().includes(contactId.toLowerCase())).map((note) => note.content);
+  }
+  async getMoodProfile(contactId) {
+    try {
+      const profile = await moodDetectionService.getMoodProfile(contactId);
+      if (profile) {
+        return {
+          dominantEmotion: Object.keys(profile.emotions).reduce(
+            (a, b) => (profile.emotions[a] || 0) > (profile.emotions[b] || 0) ? a : b
+          ),
+          averageTone: profile.averageTone,
+          lastUpdated: profile.lastUpdated
+        };
+      }
+    } catch (error) {
+      log("WARN", `Failed to get mood profile for ${contactId}: ${error}`);
+    }
+    return void 0;
+  }
+  getResponsePreferences(_contactId, _settings) {
+    return {
+      preferredTone: "professional",
+      responseLength: "medium",
+      emojiPreference: "moderate"
+    };
+  }
+  getConversationHistory(_contactId, messageText) {
+    return {
+      lastMessage: messageText || "",
+      lastResponse: "",
+      topics: messageText ? this.extractTopics(messageText, "") : [],
+      sentimentTrend: "stable"
+    };
+  }
+  buildContextEnrichment(context, _messageText) {
+    const personalNotes = context.personalNotes.length > 0 ? `Personal Notes: ${context.personalNotes.join("; ")}` : "No personal notes available";
+    const contactNotes = context.contactNotes.length > 0 ? `Contact Notes: ${context.contactNotes.join("; ")}` : "No contact notes available";
+    const contactCategory = context.category ? `Contact Category: ${context.category}` : "Contact Category: General";
+    const moodContext = context.moodProfile ? `Current Mood: ${context.moodProfile.dominantEmotion} (${context.moodProfile.averageTone} tone)` : "Current Mood: Unknown";
+    const responseGuidance = `Response Preferences: ${context.responsePreferences.preferredTone} tone, ${context.responsePreferences.responseLength} length, ${context.responsePreferences.emojiPreference} emoji usage`;
+    const conversationMemory = context.conversationHistory.topics.length > 0 ? `Recent Topics: ${context.conversationHistory.topics.join(", ")}` : "No recent topics";
+    return {
+      personalNotes,
+      contactNotes,
+      contactCategory,
+      moodContext,
+      responseGuidance,
+      conversationMemory
+    };
+  }
+  getMoodBasedToneAdjustment(emotion) {
+    switch (emotion) {
+      case "happy":
+      case "excited":
+        return "enthusiastic";
+      case "sad":
+      case "depressed":
+        return "empathetic";
+      case "angry":
+      case "frustrated":
+        return "empathetic";
+      case "anxious":
+        return "empathetic";
+      case "neutral":
+        return "professional";
+      default:
+        return null;
+    }
+  }
+  getCategoryBasedToneAdjustment(category) {
+    switch (category.toLowerCase()) {
+      case "family":
+        return "Use warm, familiar tone";
+      case "friend":
+        return "Use casual, friendly tone";
+      case "colleague":
+        return "Use professional tone";
+      case "acquaintance":
+        return "Use polite, neutral tone";
+      default:
+        return null;
+    }
+  }
+  extractTopics(message1, message2) {
+    const text = `${message1} ${message2}`.toLowerCase();
+    const topics = [];
+    const topicKeywords = [
+      "work",
+      "job",
+      "career",
+      "business",
+      "money",
+      "finance",
+      "family",
+      "home",
+      "house",
+      "apartment",
+      "health",
+      "doctor",
+      "hospital",
+      "medicine",
+      "food",
+      "restaurant",
+      "cooking",
+      "recipe",
+      "travel",
+      "vacation",
+      "trip",
+      "hotel",
+      "technology",
+      "computer",
+      "phone",
+      "internet"
+    ];
+    for (const keyword of topicKeywords) {
+      if (text.includes(keyword) && !topics.includes(keyword)) {
+        topics.push(keyword);
+      }
+    }
+    return topics.slice(0, 5);
+  }
+  calculateSentimentTrend(_history) {
+    return "stable";
+  }
+}
+const personalContextService = PersonalContextService.getInstance();
 function registerIpcHandlers(whatsappClient) {
   electron.ipcMain.handle(IPC_CHANNELS.START_BOT, async () => {
     try {
@@ -1301,7 +2829,6 @@ function registerIpcHandlers(whatsappClient) {
   electron.ipcMain.handle(IPC_CHANNELS.DELETE_PRODUCT, async (_, id) => {
     try {
       await deleteCatalogItem$1(id);
-      await deleteCatalogItem(id);
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -1378,6 +2905,247 @@ function registerIpcHandlers(whatsappClient) {
       return { success: false, error: String(error) };
     }
   });
+  electron.ipcMain.handle("mood:detect", async (_, message, contactId) => {
+    try {
+      const result = await moodDetectionService.detectMood(message, contactId);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("mood:get-profile", async (_, contactId) => {
+    try {
+      const profile = await moodDetectionService.getMoodProfile(contactId);
+      return { success: true, data: profile };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("analytics:get", async () => {
+    try {
+      const analytics = await analyticsService.getAnalytics();
+      return { success: true, data: analytics };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("analytics:track-message", async (_, messageData) => {
+    try {
+      await analyticsService.trackMessage(
+        messageData.messageId,
+        messageData.direction,
+        messageData.contactId,
+        messageData.contactName,
+        messageData.messageText,
+        messageData.wasAutoReplied,
+        messageData.replyText
+      );
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("analytics:export", async (_, format) => {
+    try {
+      const data = await analyticsService.exportAnalytics(format);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("analytics:clear", async () => {
+    try {
+      await analyticsService.clearAnalytics();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("context:get", async (_, contactId, contactName, messageText) => {
+    try {
+      const context = await personalContextService.getPersonalContext(contactId, contactName, messageText);
+      return { success: true, data: context };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("context:enrich-prompt", async (_, contactId, contactName, messageText, basePrompt) => {
+    try {
+      const enrichedPrompt = await personalContextService.enrichPrompt(contactId, contactName, messageText, basePrompt);
+      return { success: true, data: enrichedPrompt };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("context:update", async (_, contactId, contactName, messageText, responseText) => {
+    try {
+      await personalContextService.updatePersonalContext(contactId, contactName, messageText, responseText);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("context:clear-cache", async () => {
+    try {
+      personalContextService.clearCache();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  const contactManagementService = ContactManagementService.getInstance();
+  electron.ipcMain.handle(IPC_CHANNELS.GET_CONTACTS, async () => {
+    try {
+      const contacts = await contactManagementService.getContacts();
+      return { success: true, data: contacts };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.ADD_CONTACT, async (_, contactData) => {
+    try {
+      const contact = await contactManagementService.addContact(contactData);
+      return { success: true, data: contact };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.UPDATE_CONTACT, async (_, { id, updates }) => {
+    try {
+      const contact = await contactManagementService.updateContact(id, updates);
+      return { success: true, data: contact };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.DELETE_CONTACT, async (_, id) => {
+    try {
+      const deleted = await contactManagementService.deleteContact(id);
+      return { success: deleted };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.ASSIGN_CONTACT_CATEGORIES, async (_, { contactId, categoryIds }) => {
+    try {
+      const assigned = await contactManagementService.assignCategories(contactId, categoryIds);
+      return { success: assigned };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.SEARCH_CONTACTS, async (_, filter) => {
+    try {
+      const contacts = await contactManagementService.searchContacts(filter);
+      return { success: true, data: contacts };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.IMPORT_CONTACTS, async (_, contacts) => {
+    try {
+      const result = await contactManagementService.importContacts(contacts);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.EXPORT_CONTACTS, async () => {
+    try {
+      const contacts = await contactManagementService.exportContacts();
+      return { success: true, data: contacts };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.GET_CONTACT_NOTES, async () => {
+    try {
+      const notes = await contactManagementService.getContactNotes();
+      return { success: true, data: notes };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.ADD_CONTACT_NOTE, async (_, noteData) => {
+    try {
+      const note = await contactManagementService.addContactNote(noteData);
+      return { success: true, data: note };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.UPDATE_CONTACT_NOTE, async (_, { id, updates }) => {
+    try {
+      const note = await contactManagementService.updateContactNote(id, updates);
+      return { success: true, data: note };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.DELETE_CONTACT_NOTE, async (_, id) => {
+    try {
+      const deleted = await contactManagementService.deleteContactNote(id);
+      return { success: deleted };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle(IPC_CHANNELS.GET_CONTACT_NOTES_BY_CONTACT, async (_, contactId) => {
+    try {
+      const notes = await contactManagementService.getContactNotesByContact(contactId);
+      return { success: true, data: notes };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("contacts:load-whatsapp", async () => {
+    try {
+      const result = await contactManagementService.loadWhatsAppContacts();
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("contacts:create-test", async () => {
+    try {
+      const result = await contactManagementService.createTestContacts();
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("contacts:get-status", async () => {
+    try {
+      const status = await contactManagementService.getContactSystemStatus();
+      return { success: true, data: status };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("contacts:get-debug-info", async (_, contactId) => {
+    try {
+      const debugInfo = await contactManagementService.getContactDebugInfo(contactId);
+      return { success: true, data: debugInfo };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("contacts:clear-all", async () => {
+    try {
+      const cleared = await contactManagementService.clearAllContacts();
+      return { success: cleared };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+  electron.ipcMain.handle("contacts:get-stats", async () => {
+    try {
+      const stats = await contactManagementService.getContactStats();
+      return { success: true, data: stats };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
 }
 let groq = null;
 function getGroq() {
@@ -1392,12 +3160,16 @@ function getGroq() {
   }
   return groq;
 }
-async function generateAIReply(userMessage, systemPrompt, history = [], multimodalContext, styleContext) {
+async function generateAIReply(userMessage, systemPrompt, history = [], multimodalContext, styleContext, contactId, contactName) {
   try {
     const context = await retrieveContext(userMessage);
     const settings = await getSettings();
-    const { botName, currency, licenseKey, licenseStatus } = settings;
+    const { botName, currency, licenseKey, licenseStatus, edition } = settings;
     const profile = settings.businessProfile;
+    let personalContextBlock = "";
+    let moodContextBlock = "";
+    let responseGuidanceBlock = "";
+    if (edition === "personal" && contactId) ;
     const catalog = await getCatalog();
     const catalogBlock = catalog.length > 0 ? `
 
@@ -1455,8 +3227,9 @@ ${profileBlock}
 ${catalogBlock}
 ${contextBlock}
 ${historyBlock}
-${contextBlock}
-${historyBlock}
+${moodContextBlock}
+${personalContextBlock}
+${responseGuidanceBlock}
 ${multimodalBlock}
 ${styleBlock}
 
@@ -1472,10 +3245,13 @@ IMPORTANT INSTRUCTIONS:
 9. Use natural, conversational language
 10. Match the specified Tone (${profile.tone}) in your writing style.
 11. If MEDIA CONTEXT is provided, TREAT IT AS DIRECT USER INPUT. Do NOT say "I see you sent an image" or "According to the analysis". React naturally. (e.g., If the image contains a "Merry Christmas" flyer, reply "Merry Christmas!"; if it shows a product, answer questions about it).
+12. USE PERSONAL CONTEXT when available to make responses more relevant and personalized. Consider the contact's category, mood, and preferences.
+13. ADJUST TONE based on mood detection and personal context guidance.
 
 Analyze the user's message for:
 - Sentiment level (low/medium/high frustration)
 - Product intent (what product/service they're asking about)
+- Mood and emotional state (if Personal edition)
 
 Respond with a helpful reply.`;
     let textResponse = "";
@@ -1524,6 +3300,7 @@ Respond with a helpful reply.`;
     }
     const sentiment = detectSentiment(userMessage);
     const productIntent = detectProductIntent(userMessage);
+    if (edition === "personal" && contactId) ;
     log("AI", `Generated reply (sentiment: ${sentiment}, product: ${productIntent || "none"})`);
     return {
       text: textResponse,
@@ -1581,6 +3358,23 @@ async function analyzeMedia(mode, base64Data, mimeType) {
       prompt = "Transcribe this audio message exactly as spoken. If it contains a question or request, summarize the intent at the end in brackets [Intent: ...].";
     } else if (mode === "video") {
       prompt = "Describe this video. If there is speech, transcribe it. If there is visual action, describe it naturally.";
+    } else if (mode === "sticker") {
+      prompt = `Analyze this sticker for conversational context. This may be an ANIMATED sticker (like a GIF).
+
+First, identify the STICKER TYPE:
+- REACTION: An emotional reaction sticker (expressing laughter, shock, approval, etc.)
+- MEME: A meme-based sticker shared for humor
+- CHARACTER: A character/mascot sticker expressing something specific
+- CUSTOM: A custom/personalized sticker
+- OTHER: Anything else
+
+Then provide:
+1. [TYPE]: One of the above
+2. [EMOTION]: What emotion or reaction is this sticker conveying? (e.g., "laughing hard", "shocked", "approval", "sarcasm")
+3. [INTENT]: Why was this sent? (e.g., "reacting to something funny", "expressing agreement", "being playful")
+
+If it's animated, describe what the animation shows (e.g., "character laughing and falling over").
+Be concise. Focus on the EMOTIONAL INTENT, not the literal visual description.`;
     } else {
       prompt = `Analyze this image for conversational context. Your task is to help me respond appropriately in a chat.
 
@@ -1603,6 +3397,12 @@ Be concise. Focus on INTENT over literal visual description.`;
       content.push({
         type: "image",
         image: base64Data
+      });
+    } else if (mode === "sticker") {
+      content.push({
+        type: "image",
+        image: base64Data,
+        mimeType: cleanMime
       });
     } else {
       content.push({
@@ -1963,7 +3763,7 @@ async function getRecentHistory(contactId, limit = 10) {
     if (!table2) {
       return [];
     }
-    const allRecords = await table2.search().limit(limit * 3).toArray();
+    const allRecords = await table2.query().limit(limit * 3).toArray();
     const sorted = allRecords.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
     return sorted.map((r) => ({
       text: r.text,
@@ -2010,7 +3810,7 @@ async function exportContactMemory(contactId) {
   try {
     const table2 = await getContactTable(contactId);
     if (!table2) return [];
-    const allRecords = await table2.search().limit(1e4).toArray();
+    const allRecords = await table2.query().limit(1e4).toArray();
     return allRecords.map((r) => ({
       id: r.id,
       contactId: r.contactId,
@@ -2047,16 +3847,19 @@ class OwnerInterceptService {
    * Called when the owner sends a message to a chat.
    * This signals that the owner is taking over the conversation.
    */
-  onOwnerMessage(chatId, msg) {
+  onOwnerMessage(chatId, msg, mediaContext) {
     const existing = this.activeChats.get(chatId);
-    log("INFO", `[OwnerIntercept] Owner messaged ${chatId}: "${msg.body.substring(0, 50)}..."`);
+    log("INFO", `[OwnerIntercept] Owner messaged ${chatId}: "${msg.body.substring(0, 50)}..."${mediaContext ? " [with media]" : ""}`);
     this.activeChats.set(chatId, {
       ownerMessage: msg,
       ownerMessageText: msg.body,
+      ownerMediaContext: mediaContext,
       timestamp: Date.now(),
       pendingCustomerMessages: existing?.pendingCustomerMessages || []
     });
-    embedMessage(chatId, "owner", msg.body).catch((err) => log("ERROR", `[OwnerIntercept] Failed to embed owner message: ${err}`));
+    const messageToEmbed = mediaContext ? `${msg.body}
+[Media: ${mediaContext}]` : msg.body;
+    embedMessage(chatId, "owner", messageToEmbed).catch((err) => log("ERROR", `[OwnerIntercept] Failed to embed owner message: ${err}`));
   }
   /**
    * Called when a customer message is queued. We track it here in case
@@ -2097,6 +3900,7 @@ class OwnerInterceptService {
     if (!activity || !activity.ownerMessageText) return null;
     return {
       ownerMessage: activity.ownerMessageText,
+      ownerMediaContext: activity.ownerMediaContext,
       customerMessages: activity.pendingCustomerMessages.map((m) => m.body)
     };
   }
@@ -2138,6 +3942,18 @@ const FEATURE_DEFAULTS = {
     memory: { enabled: true },
     styleLearning: true,
     multimodal: true,
+    // Personal Edition Features - Enabled
+    personalNotes: true,
+    contactCategories: true,
+    contactManagement: true,
+    moodDetection: true,
+    personalAnalytics: true,
+    // Business Edition Features - Disabled
+    productCatalog: false,
+    businessProfile: false,
+    currencySettings: false,
+    businessAnalytics: false,
+    teamCollaboration: false,
     licensing: { enabled: false },
     debugTools: true,
     canSwitchEdition: true
@@ -2151,6 +3967,18 @@ const FEATURE_DEFAULTS = {
     styleLearning: false,
     // Professional tone preferred
     multimodal: true,
+    // Personal Edition Features - Disabled
+    personalNotes: false,
+    contactCategories: false,
+    contactManagement: false,
+    moodDetection: false,
+    personalAnalytics: false,
+    // Business Edition Features - Enabled
+    productCatalog: true,
+    businessProfile: true,
+    currencySettings: true,
+    businessAnalytics: true,
+    teamCollaboration: true,
     licensing: { enabled: true },
     debugTools: false,
     canSwitchEdition: false
@@ -2162,6 +3990,17 @@ const FEATURE_DEFAULTS = {
     memory: { enabled: true },
     styleLearning: true,
     multimodal: true,
+    // All features enabled for development
+    personalNotes: true,
+    contactCategories: true,
+    contactManagement: true,
+    moodDetection: true,
+    personalAnalytics: true,
+    productCatalog: true,
+    businessProfile: true,
+    currencySettings: true,
+    businessAnalytics: true,
+    teamCollaboration: true,
     licensing: { enabled: true, serverUrl: "http://localhost:3000" },
     debugTools: true,
     canSwitchEdition: true
@@ -2173,7 +4012,9 @@ class WhatsAppClient {
   qrCodeDataUrl = null;
   isRunning = false;
   queueService;
+  contactManagementService;
   constructor() {
+    this.contactManagementService = ContactManagementService.getInstance();
     this.queueService = new SmartQueueService((channel, data) => this.broadcastToRenderer(channel, data));
     this.initClient();
   }
@@ -2268,13 +4109,52 @@ class WhatsAppClient {
       if (settings.ownerIntercept?.enabled === false) return;
       const chatId = msg.to;
       log("INFO", `[OwnerIntercept] Owner sent message to ${chatId}: "${msg.body.substring(0, 30)}..."`);
+      let ownerMediaContext;
+      if (msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media) {
+            const mime = media.mimetype;
+            if (settings.voiceEnabled && (mime.includes("audio") || mime.includes("ogg"))) {
+              log("INFO", "[OwnerIntercept] Owner sent voice note - analyzing...");
+              const analysis = await analyzeMedia("audio", media.data, mime);
+              if (analysis) {
+                ownerMediaContext = `[OWNER VOICE NOTE]: "${analysis}"`;
+              }
+            }
+            if (settings.visionEnabled && msg.type === "sticker") {
+              log("INFO", "[OwnerIntercept] Owner sent sticker (may be animated) - analyzing...");
+              const analysis = await analyzeMedia("sticker", media.data, mime);
+              if (analysis) {
+                ownerMediaContext = `[OWNER STICKER]: ${analysis}`;
+              }
+            }
+            if (settings.visionEnabled && msg.type !== "sticker" && mime.includes("image")) {
+              log("INFO", "[OwnerIntercept] Owner sent image - analyzing...");
+              const analysis = await analyzeMedia("image", media.data, mime);
+              if (analysis) {
+                ownerMediaContext = `[OWNER IMAGE]: ${analysis}`;
+              }
+            }
+            if (settings.visionEnabled && mime.includes("video")) {
+              log("INFO", "[OwnerIntercept] Owner sent video - analyzing...");
+              const analysis = await analyzeMedia("video", media.data, mime);
+              if (analysis) {
+                ownerMediaContext = `[OWNER VIDEO]: ${analysis}`;
+              }
+            }
+          }
+        } catch (mediaError) {
+          log("WARN", `[OwnerIntercept] Failed to analyze owner media: ${mediaError}`);
+        }
+      }
       if (this.queueService.hasPendingBuffer(chatId)) {
         log("INFO", `[OwnerIntercept] Pending queue found - pausing and injecting context`);
-        ownerInterceptService.onOwnerMessage(chatId, msg);
+        ownerInterceptService.onOwnerMessage(chatId, msg, ownerMediaContext);
         const pauseMs = settings.ownerIntercept?.pauseDurationMs || 15e3;
         this.queueService.pauseForOwner(chatId, pauseMs);
       } else {
-        ownerInterceptService.onOwnerMessage(chatId, msg);
+        ownerInterceptService.onOwnerMessage(chatId, msg, ownerMediaContext);
         log("DEBUG", `[OwnerIntercept] No pending queue - tracking owner activity for context`);
       }
     } catch (error) {
@@ -2291,6 +4171,7 @@ class WhatsAppClient {
       if (msg.from.includes("@newsletter")) return;
       const ignoredTypes = ["e2e_notification", "call_log", "protocol", "gp2", "notification_template", "ciphertext", "revoked"];
       if (ignoredTypes.includes(msg.type)) return;
+      await this.syncContactFromMessage(msg);
       let contact;
       try {
         contact = await msg.getContact();
@@ -2324,8 +4205,18 @@ class WhatsAppClient {
                 await saveMessageContext(msg.id._serialized, analysis);
               }
             }
-            if (settings.visionEnabled && (mime.includes("image") || mime.includes("sticker"))) {
-              log("INFO", "Processing Image/Sticker...");
+            if (settings.visionEnabled && msg.type === "sticker") {
+              log("INFO", "Processing Sticker (may be animated)...");
+              const analysis = await analyzeMedia("sticker", media.data, mime);
+              if (analysis) {
+                multimodalContext = `[STICKER ANALYSIS]: "${analysis}"`;
+                msg.body = msg.body ? `${msg.body} 
+(Sent a Sticker: ${analysis})` : `(Sent a Sticker: ${analysis})`;
+                await saveMessageContext(msg.id._serialized, analysis);
+              }
+            }
+            if (settings.visionEnabled && msg.type !== "sticker" && mime.includes("image")) {
+              log("INFO", "Processing Image...");
               const analysis = await analyzeMedia("image", media.data, mime);
               if (analysis) {
                 multimodalContext = `[IMAGE ANALYSIS]: "${analysis}"`;
@@ -2361,6 +4252,38 @@ class WhatsAppClient {
       );
     } catch (error) {
       log("ERROR", `Error handling message: ${error}`);
+    }
+  }
+  /**
+   * Sync contact from incoming message
+   */
+  async syncContactFromMessage(msg) {
+    try {
+      let contactName = "Unknown";
+      let contactNumber = msg.from.replace("@c.us", "");
+      let isSaved = false;
+      let contact;
+      try {
+        contact = await msg.getContact();
+      } catch (e) {
+        log("WARN", `Contact lookup failed: ${e}`);
+      }
+      if (contact) {
+        contactName = contact.name || contact.pushname || contact.number || contactNumber;
+        contactNumber = contact.number || contactNumber;
+        isSaved = contact.isMyContact || false;
+      } else {
+        const rawName = msg._data?.notifyName || msg._data?.pushname;
+        contactName = rawName || contactNumber;
+      }
+      await this.contactManagementService.syncContactFromWhatsApp({
+        id: msg.from,
+        name: contactName,
+        number: contactNumber,
+        isSaved
+      });
+    } catch (error) {
+      log("WARN", `Failed to sync contact from message: ${error}`);
     }
   }
   async processAggregatedMessages(messages, settings, contactName) {
@@ -2434,15 +4357,19 @@ class WhatsAppClient {
       const ownerContext = ownerInterceptService.getOwnerContext(contactNumber + "@c.us");
       if (ownerContext && settings.ownerIntercept?.enabled !== false) {
         isCollaborativeMode = true;
-        log("INFO", `[OwnerIntercept] Collaborative mode active - owner said: "${ownerContext.ownerMessage.substring(0, 50)}..."`);
+        log("INFO", `[OwnerIntercept] Collaborative mode active - owner said: "${ownerContext.ownerMessage.substring(0, 50)}..."${ownerContext.ownerMediaContext ? " [with media]" : ""}`);
+        const ownerFullMessage = ownerContext.ownerMediaContext ? `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}
+${ownerContext.ownerMediaContext}` : `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}`;
         history.push({
           role: "model",
-          content: `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}`
+          content: ownerFullMessage
         });
+        const mediaNote = ownerContext.ownerMediaContext ? `
+The owner also sent media: ${ownerContext.ownerMediaContext}` : "";
         collaborativePrompt = `
 
 === COLLABORATIVE MODE ACTIVE ===
-The business owner has just replied to this customer with: "${ownerContext.ownerMessage}"
+The business owner has just replied to this customer with: "${ownerContext.ownerMessage}"${mediaNote}
 
 Your job is to decide:
 1. If the owner's reply FULLY addresses the customer's question(s), respond ONLY with: [NO_REPLY_NEEDED]
@@ -2681,6 +4608,10 @@ If in doubt, choose [NO_REPLY_NEEDED].
   getQRCode() {
     return this.qrCodeDataUrl;
   }
+  async getContacts() {
+    if (!this.client || this.status !== "connected") return [];
+    return await this.client.getContacts();
+  }
   async getDrafts() {
     return await getDrafts();
   }
@@ -2874,3 +4805,12 @@ electron.app.on("before-quit", async () => {
     }
   }
 });
+const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  get mainWindow() {
+    return exports.mainWindow;
+  },
+  get whatsappClient() {
+    return exports.whatsappClient;
+  }
+}, Symbol.toStringTag, { value: "Module" }));

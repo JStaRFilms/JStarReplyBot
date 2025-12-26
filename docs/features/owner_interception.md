@@ -38,6 +38,30 @@ The AI receives a modified prompt in collaborative mode:
 - If AI can add value (e.g., pricing, unanswered question) → Sends a brief follow-up
 - Reply mode: `[REPLY_MODE: QUOTE]` or `[REPLY_MODE: PLAIN]`
 
+---
+
+## Owner Multimodal Support (Hotfix 2025-12-26)
+
+### Overview
+The bot can now **see and understand media that YOU (the owner) send**. This ensures the bot provides contextually relevant follow-ups even if you reply with an image, voice note, or sticker.
+
+### Supported Media
+- **Voice Notes:** Bot transcribes your voice note and adds it to conversation history.
+- **Images:** Bot analyzes your image (e.g., "Owner shared a product photo of a blue watch") to understand context.
+- **Stickers:** Bot analyzes the emotion of the sticker YOU sent.
+
+### Technical Implementation
+1. **`handleOwnerMessage`**: Now checks for `msg.hasMedia`.
+2. **`analyzeMedia`**: Sends owner media to Gemini for analysis.
+3. **`OwnerInterceptService`**: Stores `ownerMediaContext` alongside the text message.
+4. **Context Injection**: The AI receives:
+   ```text
+   The business owner has just replied with: "Check this out"
+   The owner also sent media: [OWNER IMAGE]: Product photo of a luxury watch.
+   ```
+
+---
+
 ## Settings
 
 | Setting | Default | Description |
@@ -77,3 +101,8 @@ The AI receives a modified prompt in collaborative mode:
 ### Hotfix 2025-12-25: Embed on Abort Bug
 - **Problem:** Bot embedded reply in memory even when send was aborted.
 - **Solution:** Changed `sendReplyWithSafeMode()` to return `boolean` (true=sent, false=aborted). Caller skips embed on abort.
+
+### Hotfix 2025-12-26: Owner Multimodal Support
+- **Problem:** Bot was "blind" to media sent by the owner, leading to redundant or confusing follow-ups.
+- **Solution:** Updated `handleOwnerMessage` and `OwnerInterceptService` to analyze and store media context from owner messages.
+- **Collaborative Prompt:** Updated AI prompt to include `ownerMediaContext`.

@@ -11,6 +11,7 @@ import { SmartQueueService } from './services/queue.service'
 import { embedMessage, recallMemory, getRecentHistory } from './services/conversation-memory.service'
 import { ownerInterceptService } from './services/owner-intercept.service'
 import { styleProfileService } from './services/style-profile.service'
+import { ContactManagementService } from './services/contact-management.service'
 import { FEATURE_DEFAULTS } from '../shared/config/features'
 import type { ConnectionStatus, DraftMessage, Settings } from '../shared/types'
 import { IPC_CHANNELS } from '../shared/types'
@@ -21,8 +22,10 @@ export class WhatsAppClient {
     private qrCodeDataUrl: string | null = null
     private isRunning = false
     private queueService: SmartQueueService
+    private contactManagementService: ContactManagementService
 
     constructor() {
+        this.contactManagementService = ContactManagementService.getInstance()
         this.queueService = new SmartQueueService((channel, data) => this.broadcastToRenderer(channel, data))
         this.initClient()
     }
@@ -144,19 +147,68 @@ export class WhatsAppClient {
 
             log('INFO', `[OwnerIntercept] Owner sent message to ${chatId}: "${msg.body.substring(0, 30)}..."`)
 
+            // ========== MULTIMODAL: Analyze owner's media ==========
+            let ownerMediaContext: string | undefined
+            if (msg.hasMedia) {
+                try {
+                    const media = await msg.downloadMedia()
+                    if (media) {
+                        const mime = media.mimetype
+
+                        // Audio Handling (voice note from owner)
+                        if (settings.voiceEnabled && (mime.includes('audio') || mime.includes('ogg'))) {
+                            log('INFO', '[OwnerIntercept] Owner sent voice note - analyzing...')
+                            const analysis = await analyzeMedia('audio', media.data, mime)
+                            if (analysis) {
+                                ownerMediaContext = `[OWNER VOICE NOTE]: "${analysis}"`
+                            }
+                        }
+
+                        // Sticker Handling (separate from images - may be animated)
+                        if (settings.visionEnabled && msg.type === 'sticker') {
+                            log('INFO', '[OwnerIntercept] Owner sent sticker (may be animated) - analyzing...')
+                            const analysis = await analyzeMedia('sticker', media.data, mime)
+                            if (analysis) {
+                                ownerMediaContext = `[OWNER STICKER]: ${analysis}`
+                            }
+                        }
+
+                        // Image Handling (non-sticker images)
+                        if (settings.visionEnabled && msg.type !== 'sticker' && mime.includes('image')) {
+                            log('INFO', '[OwnerIntercept] Owner sent image - analyzing...')
+                            const analysis = await analyzeMedia('image', media.data, mime)
+                            if (analysis) {
+                                ownerMediaContext = `[OWNER IMAGE]: ${analysis}`
+                            }
+                        }
+
+                        // Video Handling
+                        if (settings.visionEnabled && mime.includes('video')) {
+                            log('INFO', '[OwnerIntercept] Owner sent video - analyzing...')
+                            const analysis = await analyzeMedia('video', media.data, mime)
+                            if (analysis) {
+                                ownerMediaContext = `[OWNER VIDEO]: ${analysis}`
+                            }
+                        }
+                    }
+                } catch (mediaError) {
+                    log('WARN', `[OwnerIntercept] Failed to analyze owner media: ${mediaError}`)
+                }
+            }
+
             // Check if there's a pending queue for this contact
             if (this.queueService.hasPendingBuffer(chatId)) {
                 log('INFO', `[OwnerIntercept] Pending queue found - pausing and injecting context`)
 
-                // Notify the intercept service
-                ownerInterceptService.onOwnerMessage(chatId, msg)
+                // Notify the intercept service (now with media context)
+                ownerInterceptService.onOwnerMessage(chatId, msg, ownerMediaContext)
 
                 // Pause the queue (extend timer to give owner time)
                 const pauseMs = settings.ownerIntercept?.pauseDurationMs || 15000
                 this.queueService.pauseForOwner(chatId, pauseMs)
             } else {
                 // No pending messages, just track owner activity for future context
-                ownerInterceptService.onOwnerMessage(chatId, msg)
+                ownerInterceptService.onOwnerMessage(chatId, msg, ownerMediaContext)
                 log('DEBUG', `[OwnerIntercept] No pending queue - tracking owner activity for context`)
             }
         } catch (error) {
@@ -182,6 +234,9 @@ export class WhatsAppClient {
             // Ignore system messages and non-chat types
             const ignoredTypes = ['e2e_notification', 'call_log', 'protocol', 'gp2', 'notification_template', 'ciphertext', 'revoked']
             if (ignoredTypes.includes(msg.type)) return
+
+            // Sync contact from WhatsApp
+            await this.syncContactFromMessage(msg)
 
             // Detailed contact lookup
             let contact
@@ -230,9 +285,20 @@ export class WhatsAppClient {
                             }
                         }
 
-                        // Image & Sticker Handling
-                        if (settings.visionEnabled && (mime.includes('image') || mime.includes('sticker'))) {
-                            log('INFO', 'Processing Image/Sticker...')
+                        // Sticker Handling (separate from images - may be animated)
+                        if (settings.visionEnabled && msg.type === 'sticker') {
+                            log('INFO', 'Processing Sticker (may be animated)...')
+                            const analysis = await analyzeMedia('sticker', media.data, mime)
+                            if (analysis) {
+                                multimodalContext = `[STICKER ANALYSIS]: "${analysis}"`
+                                msg.body = msg.body ? `${msg.body} \n(Sent a Sticker: ${analysis})` : `(Sent a Sticker: ${analysis})`
+                                await saveMessageContext(msg.id._serialized, analysis)
+                            }
+                        }
+
+                        // Image Handling (non-sticker images)
+                        if (settings.visionEnabled && msg.type !== 'sticker' && mime.includes('image')) {
+                            log('INFO', 'Processing Image...')
                             const analysis = await analyzeMedia('image', media.data, mime)
                             if (analysis) {
                                 multimodalContext = `[IMAGE ANALYSIS]: "${analysis}"`
@@ -276,6 +342,47 @@ export class WhatsAppClient {
 
         } catch (error) {
             log('ERROR', `Error handling message: ${error}`)
+        }
+    }
+
+    /**
+     * Sync contact from incoming message
+     */
+    private async syncContactFromMessage(msg: Message): Promise<void> {
+        try {
+            let contactName = 'Unknown'
+            let contactNumber = msg.from.replace('@c.us', '')
+            let isSaved = false
+
+            // Try to get contact details
+            let contact
+            try {
+                contact = await msg.getContact()
+            } catch (e) {
+                log('WARN', `Contact lookup failed: ${e}`)
+            }
+
+            if (contact) {
+                contactName = contact.name || contact.pushname || contact.number || contactNumber
+                contactNumber = contact.number || contactNumber
+                isSaved = contact.isMyContact || false
+            } else {
+                // FALLBACK: Try to get pushname from raw message data if getContact failed
+                // @ts-ignore - _data exists on the message object at runtime
+                const rawName = msg._data?.notifyName || msg._data?.pushname
+                contactName = rawName || contactNumber
+            }
+
+            // Sync contact with contact management system
+            await this.contactManagementService.syncContactFromWhatsApp({
+                id: msg.from,
+                name: contactName,
+                number: contactNumber,
+                isSaved: isSaved
+            })
+
+        } catch (error) {
+            log('WARN', `Failed to sync contact from message: ${error}`)
         }
     }
 
@@ -380,19 +487,26 @@ export class WhatsAppClient {
 
             if (ownerContext && settings.ownerIntercept?.enabled !== false) {
                 isCollaborativeMode = true
-                log('INFO', `[OwnerIntercept] Collaborative mode active - owner said: "${ownerContext.ownerMessage.substring(0, 50)}..."`)
+                log('INFO', `[OwnerIntercept] Collaborative mode active - owner said: "${ownerContext.ownerMessage.substring(0, 50)}..."${ownerContext.ownerMediaContext ? ' [with media]' : ''}`)
 
                 // Add owner's message to history as a "model" message (since we are the model)
+                // Include media context if present
+                const ownerFullMessage = ownerContext.ownerMediaContext
+                    ? `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}\n${ownerContext.ownerMediaContext}`
+                    : `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}`
                 history.push({
                     role: 'model',
-                    content: `[OWNER JUST REPLIED]: ${ownerContext.ownerMessage}`
+                    content: ownerFullMessage
                 })
 
                 // Modify the system prompt to handle collaborative mode
+                const mediaNote = ownerContext.ownerMediaContext
+                    ? `\nThe owner also sent media: ${ownerContext.ownerMediaContext}`
+                    : ''
                 collaborativePrompt = `
 
 === COLLABORATIVE MODE ACTIVE ===
-The business owner has just replied to this customer with: "${ownerContext.ownerMessage}"
+The business owner has just replied to this customer with: "${ownerContext.ownerMessage}"${mediaNote}
 
 Your job is to decide:
 1. If the owner's reply FULLY addresses the customer's question(s), respond ONLY with: [NO_REPLY_NEEDED]
@@ -404,6 +518,7 @@ If in doubt, choose [NO_REPLY_NEEDED].
 =================================
 
 `
+
             }
 
 
@@ -719,6 +834,11 @@ If in doubt, choose [NO_REPLY_NEEDED].
 
     getQRCode(): string | null {
         return this.qrCodeDataUrl
+    }
+
+    async getContacts(): Promise<Contact[]> {
+        if (!this.client || this.status !== 'connected') return []
+        return await this.client.getContacts()
     }
 
     async getDrafts(): Promise<DraftMessage[]> {

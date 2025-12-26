@@ -1,9 +1,14 @@
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { StyleMemoryPanel } from '../components/settings/StyleMemoryPanel'
+import { PersonalNotesPanel } from '../components/settings/PersonalNotesPanel'
+import { ContactCategoriesPanel } from '../components/settings/ContactCategoriesPanel'
+import { ContactManagementPanel } from '../components/settings/ContactManagementPanel'
+import { MoodDetectionPanel } from '../components/settings/MoodDetectionPanel'
+import { PersonalAnalyticsPanel } from '../components/settings/PersonalAnalyticsPanel'
 import { useAppStore, useSettingsStore } from '../store'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Settings } from '../../../shared/types'
-import { FEATURE_DEFAULTS } from '../../../shared/config/features'
+import { FEATURE_DEFAULTS, isFeatureEnabled } from '../../../shared/config/features'
 
 export default function SettingsPage() {
     const { setActivePage } = useAppStore()
@@ -11,6 +16,9 @@ export default function SettingsPage() {
     const [licenseKey, setLicenseKey] = useState(settings?.licenseKey || '')
     const [isValidating, setIsValidating] = useState(false)
     const [systemPrompt, setSystemPrompt] = useState(settings?.systemPrompt || '')
+    const [contacts, setContacts] = useState([])
+
+    // Business Edition Features
     const [businessProfile, setBusinessProfile] = useState(settings?.businessProfile || {
         name: '',
         industry: '',
@@ -20,9 +28,40 @@ export default function SettingsPage() {
     })
     const [botName, setBotName] = useState(settings?.botName || 'JStar')
     const [currency, setCurrency] = useState(settings?.currency || '₦')
+
+    // Personal Edition Features
+    const [personalNotes, setPersonalNotes] = useState(settings?.personalNotes || [])
+    const [contactCategories, setContactCategories] = useState(settings?.contactCategories || [])
+    const [moodDetection, setMoodDetection] = useState(settings?.moodDetection || {
+        enabled: true,
+        sensitivity: 'medium' as const,
+        autoRespond: false
+    })
+    const [personalAnalytics, setPersonalAnalytics] = useState(settings?.personalAnalytics || {
+        enabled: true,
+        showDailyStats: true,
+        showWeeklyStats: true,
+        showMonthlyStats: true
+    })
+
     const [whitelist, setWhitelist] = useState<string[]>(settings?.whitelist || [])
     const [blacklist, setBlacklist] = useState<string[]>(settings?.blacklist || [])
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+    useEffect(() => {
+        loadContacts()
+    }, [])
+
+    const loadContacts = async () => {
+        try {
+            const result = await window.electron.ipcRenderer.invoke('contacts:get-all')
+            if (result.success) {
+                setContacts(result.data || [])
+            }
+        } catch (error) {
+            console.error('Failed to load contacts:', error)
+        }
+    }
 
     const handleToggle = async (key: keyof Settings, value: boolean) => {
         if (!settings) return
@@ -39,7 +78,11 @@ export default function SettingsPage() {
             botName,
             currency,
             whitelist,
-            blacklist
+            blacklist,
+            personalNotes,
+            contactCategories,
+            moodDetection,
+            personalAnalytics
         }
 
         try {
@@ -131,72 +174,136 @@ export default function SettingsPage() {
                 </Section>
             )}
 
-            {/* Business Profile */}
-            <Section title="Business Profile">
-                <div className="glass p-6 rounded-2xl space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Contact Management - Personal Edition Only */}
+            {isFeatureEnabled(settings.edition || 'personal', 'contactManagement') && (
+                <Section title="Contact Management">
+                    <ContactManagementPanel />
+                </Section>
+            )}
+
+            {/* Business Profile - Business Edition Only */}
+            {isFeatureEnabled(settings.edition || 'personal', 'businessProfile') && (
+                <Section title="Business Profile">
+                    <div className="glass p-6 rounded-2xl space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Business Name</label>
+                                <input
+                                    type="text"
+                                    value={businessProfile.name}
+                                    onChange={e => setBusinessProfile(prev => ({ ...prev, name: e.target.value }))}
+                                    placeholder="JStar Films"
+                                    className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Industry</label>
+                                <input
+                                    type="text"
+                                    value={businessProfile.industry}
+                                    onChange={e => setBusinessProfile(prev => ({ ...prev, industry: e.target.value }))}
+                                    placeholder="Photography & Videography"
+                                    className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Business Name</label>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Audience</label>
                             <input
                                 type="text"
-                                value={businessProfile.name}
-                                onChange={e => setBusinessProfile(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder="JStar Films"
+                                value={businessProfile.targetAudience}
+                                onChange={e => setBusinessProfile(prev => ({ ...prev, targetAudience: e.target.value }))}
+                                placeholder="Couples getting married, Corporate clients..."
                                 className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
                             />
                         </div>
+
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Industry</label>
-                            <input
-                                type="text"
-                                value={businessProfile.industry}
-                                onChange={e => setBusinessProfile(prev => ({ ...prev, industry: e.target.value }))}
-                                placeholder="Photography & Videography"
-                                className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Brand Tone</label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {['professional', 'friendly', 'enthusiastic', 'formal'].map((t) => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setBusinessProfile(prev => ({ ...prev, tone: t as any }))}
+                                        className={`px-3 py-2 rounded-lg text-xs font-medium capitalize border transition-all ${businessProfile.tone === t
+                                            ? 'bg-brand-500/10 border-brand-500 text-brand-600'
+                                            : 'bg-slate-50 dark:bg-surface-800 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
+                                            }`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Business Description</label>
+                            <textarea
+                                value={businessProfile.description}
+                                onChange={e => setBusinessProfile(prev => ({ ...prev, description: e.target.value }))}
+                                placeholder="We specialize in cinematic wedding films and high-end corporate video production..."
+                                className="w-full h-24 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none text-slate-600 dark:text-slate-400"
                             />
                         </div>
                     </div>
+                </Section>
+            )}
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Audience</label>
-                        <input
-                            type="text"
-                            value={businessProfile.targetAudience}
-                            onChange={e => setBusinessProfile(prev => ({ ...prev, targetAudience: e.target.value }))}
-                            placeholder="Couples getting married, Corporate clients..."
-                            className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                        />
-                    </div>
+            {/* Personal Edition Features */}
+            {isFeatureEnabled(settings.edition || 'personal', 'personalNotes') && (
+                <Section title="Personal Notes">
+                    <PersonalNotesPanel
+                        notes={personalNotes}
+                        categories={contactCategories}
+                        contacts={contacts}
+                        onAddNote={(note) => setPersonalNotes(prev => [...prev, { ...note, id: Date.now().toString() }])}
+                        onUpdateNote={(id, updates) => setPersonalNotes(prev =>
+                            prev.map(note => note.id === id ? { ...note, ...updates } : note)
+                        )}
+                        onDeleteNote={(id) => setPersonalNotes(prev => prev.filter(note => note.id !== id))}
+                    />
+                </Section>
+            )}
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Brand Tone</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {['professional', 'friendly', 'enthusiastic', 'formal'].map((t) => (
-                                <button
-                                    key={t}
-                                    onClick={() => setBusinessProfile(prev => ({ ...prev, tone: t as any }))}
-                                    className={`px-3 py-2 rounded-lg text-xs font-medium capitalize border transition-all ${businessProfile.tone === t
-                                        ? 'bg-brand-500/10 border-brand-500 text-brand-600'
-                                        : 'bg-slate-50 dark:bg-surface-800 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5'
-                                        }`}
-                                >
-                                    {t}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+            {/* Contact Categories */}
+            {isFeatureEnabled(settings.edition || 'personal', 'contactCategories') && (
+                <Section title="Contact Categories">
+                    <ContactCategoriesPanel
+                        categories={contactCategories}
+                        onAddCategory={(category) => setContactCategories(prev => [...prev, { ...category, id: Date.now().toString() }])}
+                        onUpdateCategory={(id, updates) => setContactCategories(prev =>
+                            prev.map(category => category.id === id ? { ...category, ...updates } : category)
+                        )}
+                        onDeleteCategory={(id) => setContactCategories(prev => prev.filter(category => category.id !== id))}
+                    />
+                </Section>
+            )}
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Business Description</label>
-                        <textarea
-                            value={businessProfile.description}
-                            onChange={e => setBusinessProfile(prev => ({ ...prev, description: e.target.value }))}
-                            placeholder="We specialize in cinematic wedding films and high-end corporate video production..."
-                            className="w-full h-24 bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg p-4 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none text-slate-600 dark:text-slate-400"
-                        />
-                    </div>
-                </div>
-            </Section>
+            {/* Mood Detection */}
+            {isFeatureEnabled(settings.edition || 'personal', 'moodDetection') && (
+                <Section title="Mood Detection">
+                    <MoodDetectionPanel
+                        moodDetection={moodDetection}
+                        onToggleEnabled={(enabled) => setMoodDetection(prev => ({ ...prev, enabled }))}
+                        onSetSensitivity={(sensitivity) => setMoodDetection(prev => ({ ...prev, sensitivity }))}
+                        onToggleAutoRespond={(autoRespond) => setMoodDetection(prev => ({ ...prev, autoRespond }))}
+                    />
+                </Section>
+            )}
+
+            {/* Personal Analytics */}
+            {isFeatureEnabled(settings.edition || 'personal', 'personalAnalytics') && (
+                <Section title="Personal Analytics">
+                    <PersonalAnalyticsPanel
+                        analytics={personalAnalytics}
+                        onToggleEnabled={(enabled) => setPersonalAnalytics(prev => ({ ...prev, enabled }))}
+                        onToggleDaily={(show) => setPersonalAnalytics(prev => ({ ...prev, showDailyStats: show }))}
+                        onToggleWeekly={(show) => setPersonalAnalytics(prev => ({ ...prev, showWeeklyStats: show }))}
+                        onToggleMonthly={(show) => setPersonalAnalytics(prev => ({ ...prev, showMonthlyStats: show }))}
+                    />
+                </Section>
+            )}
 
             {/* Style Learning & Memory */}
             {(FEATURE_DEFAULTS[settings.edition || 'personal'].styleLearning || FEATURE_DEFAULTS[settings.edition || 'personal'].memory.enabled) && (
@@ -222,17 +329,21 @@ export default function SettingsPage() {
                             />
                             <p className="text-xs text-slate-500">The name the AI will use to introduce itself.</p>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency Symbol</label>
-                            <input
-                                type="text"
-                                value={currency}
-                                onChange={e => setCurrency(e.target.value)}
-                                placeholder="₦"
-                                className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                            />
-                            <p className="text-xs text-slate-500">Used for product prices (e.g. $, ₦, £).</p>
-                        </div>
+
+                        {/* Currency Symbol - Business Edition Only */}
+                        {isFeatureEnabled(settings.edition || 'personal', 'currencySettings') && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency Symbol</label>
+                                <input
+                                    type="text"
+                                    value={currency}
+                                    onChange={e => setCurrency(e.target.value)}
+                                    placeholder="₦"
+                                    className="w-full bg-slate-50 dark:bg-surface-800 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-all"
+                                />
+                                <p className="text-xs text-slate-500">Used for product prices (e.g. $, ₦, £).</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </Section>
@@ -274,6 +385,7 @@ export default function SettingsPage() {
                         checked={settings.humanHandoverEnabled}
                         onChange={(v) => handleToggle('humanHandoverEnabled', v)}
                     />
+
 
                     {FEATURE_DEFAULTS[settings.edition || 'personal'].memory.enabled && (
                         <ToggleRow

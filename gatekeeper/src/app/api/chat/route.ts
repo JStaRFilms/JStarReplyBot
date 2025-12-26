@@ -12,12 +12,9 @@ const GROQ_KEYS = [
     process.env.GROQ_API_KEY_3,
 ].filter(Boolean) as string[]
 
-let groqKeyIndex = 0
 function getGroqKey() {
     if (GROQ_KEYS.length === 0) throw new Error('No Groq Keys configured')
-    const key = GROQ_KEYS[groqKeyIndex]
-    groqKeyIndex = (groqKeyIndex + 1) % GROQ_KEYS.length
-    return key
+    return GROQ_KEYS[Math.floor(Math.random() * GROQ_KEYS.length)]
 }
 
 // --- Master Key Logic (Google) ---
@@ -27,17 +24,12 @@ const GOOGLE_KEYS = [
     process.env.GOOGLE_API_KEY
 ].filter(Boolean) as string[]
 
-let googleKeyIndex = 0
 function getGoogleKey() {
     if (GOOGLE_KEYS.length === 0) {
-        // Fallback to Groq logic if no specific Google keys, 
-        // but typically you need specific keys for Gemini.
-        // We'll throw specific error.
         throw new Error('No Google/Gemini Keys configured')
     }
-    const key = GOOGLE_KEYS[googleKeyIndex]
-    googleKeyIndex = (googleKeyIndex + 1) % GOOGLE_KEYS.length
-    return key
+    // Random selection for better stateless distribution
+    return GOOGLE_KEYS[Math.floor(Math.random() * GOOGLE_KEYS.length)]
 }
 
 export async function POST(req: Request) {

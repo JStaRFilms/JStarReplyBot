@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Home, Link, Brain, Settings, FileText, Sun, Moon, ShoppingBag } from 'lucide-react'
 import { useAppStore, useSettingsStore, useStatsStore, useDraftsStore, useLogsStore, useDocumentsStore, useActivityStore, useCatalogStore, type ActivityEntry } from './store'
 import type { DraftMessage, LogEntry } from '../../shared/types'
+import { useFeatureGating } from './hooks/useFeatureGating'
 import HomePage from './pages/Home'
 import ConnectPage from './pages/Connect'
 import BrainPage from './pages/Brain'
@@ -10,12 +11,12 @@ import LogsPage from './pages/Logs'
 import CatalogPage from './pages/Catalog'
 
 const navItems = [
-    { id: 'home' as const, label: 'Home', icon: Home },
-    { id: 'connect' as const, label: 'Connect', icon: Link },
-    { id: 'brain' as const, label: 'Brain', icon: Brain },
-    { id: 'catalog' as const, label: 'Catalog', icon: ShoppingBag },
-    { id: 'settings' as const, label: 'Settings', icon: Settings },
-    { id: 'logs' as const, label: 'Logs', icon: FileText }
+    { id: 'home' as const, label: 'Home', icon: Home, feature: 'smartQueue' },
+    { id: 'connect' as const, label: 'Connect', icon: Link, feature: 'smartQueue' },
+    { id: 'brain' as const, label: 'Brain', icon: Brain, feature: 'memory' },
+    { id: 'catalog' as const, label: 'Catalog', icon: ShoppingBag, feature: 'productCatalog' },
+    { id: 'settings' as const, label: 'Settings', icon: Settings, feature: 'smartQueue' },
+    { id: 'logs' as const, label: 'Logs', icon: FileText, feature: 'debugTools' }
 ]
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
     const { setDocuments } = useDocumentsStore()
     const { addActivity } = useActivityStore()
     const { setCatalog } = useCatalogStore()
+    const features = useFeatureGating()
 
     // Initialize data on mount
     useEffect(() => {
@@ -141,19 +143,26 @@ export default function App() {
 
                 {/* Center Navigation */}
                 <div className="hidden md:flex items-center gap-1 bg-slate-100/50 dark:bg-white/5 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 backdrop-blur-md">
-                    {navItems.map(({ id, label, icon: Icon }) => (
-                        <button
-                            key={id}
-                            onClick={() => setActivePage(id)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${activePage === id
-                                ? 'bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm'
-                                : 'text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-200'
-                                }`}
-                        >
-                            <Icon className="w-3.5 h-3.5" />
-                            {label}
-                        </button>
-                    ))}
+                    {navItems.map(({ id, label, icon: Icon, feature }) => {
+                        // Check if feature is available
+                        const isAvailable = features[feature as keyof typeof features]
+
+                        if (!isAvailable) return null
+
+                        return (
+                            <button
+                                key={id}
+                                onClick={() => setActivePage(id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${activePage === id
+                                    ? 'bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-200'
+                                    }`}
+                            >
+                                <Icon className="w-3.5 h-3.5" />
+                                {label}
+                            </button>
+                        )
+                    })}
                 </div>
 
                 <div className="flex items-center gap-4">

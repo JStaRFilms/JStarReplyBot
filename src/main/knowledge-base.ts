@@ -283,6 +283,9 @@ export async function retrieveContext(query: string, topK = 3): Promise<string[]
 
     try {
         const queryVector = await getEmbedding(query)
+        if (queryVector.length === 0) {
+            return []
+        }
 
         const results = await table
             .vectorSearch(queryVector)

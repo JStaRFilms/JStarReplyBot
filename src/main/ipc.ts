@@ -2,9 +2,13 @@ import { ipcMain, dialog } from 'electron'
 import { WhatsAppClient } from './whatsapp'
 import { getSettings, saveSettings, getStats, getCatalog, addCatalogItem, updateCatalogItem, deleteCatalogItem, seedDatabase } from './db'
 import { getLogs, exportLogs } from './logger'
-import { indexDocument, deleteDocument, getDocuments, reindexDocument, indexCatalogItem, deleteCatalogItem as deleteCatalogItemVector } from './knowledge-base'
+import { indexDocument, deleteDocument, getDocuments, reindexDocument, indexCatalogItem } from './knowledge-base'
 import { validateLicenseKey, getLicenseStatus } from './license'
 import { styleProfileService } from './services/style-profile.service'
+import { moodDetectionService } from './services/mood-detection.service'
+import { analyticsService } from './services/analytics.service'
+import { personalContextService } from './services/personal-context.service'
+import { ContactManagementService } from './services/contact-management.service'
 import { IPC_CHANNELS, SettingsSchema } from '../shared/types'
 import type { IPCResponse, Settings, CatalogItem } from '../shared/types'
 
@@ -255,7 +259,6 @@ export function registerIpcHandlers(whatsappClient: WhatsAppClient): void {
     ipcMain.handle(IPC_CHANNELS.DELETE_PRODUCT, async (_, id: string): Promise<IPCResponse> => {
         try {
             await deleteCatalogItem(id)
-            await deleteCatalogItemVector(id)
             return { success: true }
         } catch (error) {
             return { success: false, error: String(error) }
@@ -342,6 +345,288 @@ export function registerIpcHandlers(whatsappClient: WhatsAppClient): void {
         try {
             await seedDatabase()
             return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // ============ Personal Edition Features ============
+
+    // Mood Detection
+    ipcMain.handle('mood:detect', async (_, message: string, contactId?: string): Promise<IPCResponse> => {
+        try {
+            const result = await moodDetectionService.detectMood(message, contactId)
+            return { success: true, data: result }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('mood:get-profile', async (_, contactId: string): Promise<IPCResponse> => {
+        try {
+            const profile = await moodDetectionService.getMoodProfile(contactId)
+            return { success: true, data: profile }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // Analytics
+    ipcMain.handle('analytics:get', async (): Promise<IPCResponse> => {
+        try {
+            const analytics = await analyticsService.getAnalytics()
+            return { success: true, data: analytics }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('analytics:track-message', async (_, messageData: any): Promise<IPCResponse> => {
+        try {
+            await analyticsService.trackMessage(
+                messageData.messageId,
+                messageData.direction,
+                messageData.contactId,
+                messageData.contactName,
+                messageData.messageText,
+                messageData.wasAutoReplied,
+                messageData.replyText
+            )
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('analytics:export', async (_, format: 'json' | 'csv'): Promise<IPCResponse> => {
+        try {
+            const data = await analyticsService.exportAnalytics(format)
+            return { success: true, data }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('analytics:clear', async (): Promise<IPCResponse> => {
+        try {
+            await analyticsService.clearAnalytics()
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // Personal Context
+    ipcMain.handle('context:get', async (_, contactId: string, contactName?: string, messageText?: string): Promise<IPCResponse> => {
+        try {
+            const context = await personalContextService.getPersonalContext(contactId, contactName, messageText)
+            return { success: true, data: context }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('context:enrich-prompt', async (_, contactId: string, contactName: string | undefined, messageText: string, basePrompt: string): Promise<IPCResponse> => {
+        try {
+            const enrichedPrompt = await personalContextService.enrichPrompt(contactId, contactName, messageText, basePrompt)
+            return { success: true, data: enrichedPrompt }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('context:update', async (_, contactId: string, contactName: string | undefined, messageText: string, responseText: string): Promise<IPCResponse> => {
+        try {
+            await personalContextService.updatePersonalContext(contactId, contactName, messageText, responseText)
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('context:clear-cache', async (): Promise<IPCResponse> => {
+        try {
+            personalContextService.clearCache()
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // ============ Contact Management ============
+
+    const contactManagementService = ContactManagementService.getInstance()
+
+    ipcMain.handle(IPC_CHANNELS.GET_CONTACTS, async (): Promise<IPCResponse> => {
+        try {
+            const contacts = await contactManagementService.getContacts()
+            return { success: true, data: contacts }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.ADD_CONTACT, async (_, contactData: any): Promise<IPCResponse> => {
+        try {
+            const contact = await contactManagementService.addContact(contactData)
+            return { success: true, data: contact }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_CONTACT, async (_, { id, updates }: { id: string; updates: any }): Promise<IPCResponse> => {
+        try {
+            const contact = await contactManagementService.updateContact(id, updates)
+            return { success: true, data: contact }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.DELETE_CONTACT, async (_, id: string): Promise<IPCResponse> => {
+        try {
+            const deleted = await contactManagementService.deleteContact(id)
+            return { success: deleted }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.ASSIGN_CONTACT_CATEGORIES, async (_, { contactId, categoryIds }: { contactId: string; categoryIds: string[] }): Promise<IPCResponse> => {
+        try {
+            const assigned = await contactManagementService.assignCategories(contactId, categoryIds)
+            return { success: assigned }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.SEARCH_CONTACTS, async (_, filter: any): Promise<IPCResponse> => {
+        try {
+            const contacts = await contactManagementService.searchContacts(filter)
+            return { success: true, data: contacts }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.IMPORT_CONTACTS, async (_, contacts: any[]): Promise<IPCResponse> => {
+        try {
+            const result = await contactManagementService.importContacts(contacts)
+            return { success: true, data: result }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.EXPORT_CONTACTS, async (): Promise<IPCResponse> => {
+        try {
+            const contacts = await contactManagementService.exportContacts()
+            return { success: true, data: contacts }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // ============ Contact Notes ============
+
+    ipcMain.handle(IPC_CHANNELS.GET_CONTACT_NOTES, async (): Promise<IPCResponse> => {
+        try {
+            const notes = await contactManagementService.getContactNotes()
+            return { success: true, data: notes }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.ADD_CONTACT_NOTE, async (_, noteData: any): Promise<IPCResponse> => {
+        try {
+            const note = await contactManagementService.addContactNote(noteData)
+            return { success: true, data: note }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_CONTACT_NOTE, async (_, { id, updates }: { id: string; updates: any }): Promise<IPCResponse> => {
+        try {
+            const note = await contactManagementService.updateContactNote(id, updates)
+            return { success: true, data: note }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.DELETE_CONTACT_NOTE, async (_, id: string): Promise<IPCResponse> => {
+        try {
+            const deleted = await contactManagementService.deleteContactNote(id)
+            return { success: deleted }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle(IPC_CHANNELS.GET_CONTACT_NOTES_BY_CONTACT, async (_, contactId: string): Promise<IPCResponse> => {
+        try {
+            const notes = await contactManagementService.getContactNotesByContact(contactId)
+            return { success: true, data: notes }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    // ============ Contact Management - Additional Features ============
+
+    ipcMain.handle('contacts:load-whatsapp', async (): Promise<IPCResponse> => {
+        try {
+            const result = await contactManagementService.loadWhatsAppContacts()
+            return { success: true, data: result }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('contacts:create-test', async (): Promise<IPCResponse> => {
+        try {
+            const result = await contactManagementService.createTestContacts()
+            return { success: true, data: result }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('contacts:get-status', async (): Promise<IPCResponse> => {
+        try {
+            const status = await contactManagementService.getContactSystemStatus()
+            return { success: true, data: status }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('contacts:get-debug-info', async (_, contactId: string): Promise<IPCResponse> => {
+        try {
+            const debugInfo = await contactManagementService.getContactDebugInfo(contactId)
+            return { success: true, data: debugInfo }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('contacts:clear-all', async (): Promise<IPCResponse> => {
+        try {
+            const cleared = await contactManagementService.clearAllContacts()
+            return { success: cleared }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
+    ipcMain.handle('contacts:get-stats', async (): Promise<IPCResponse> => {
+        try {
+            const stats = await contactManagementService.getContactStats()
+            return { success: true, data: stats }
         } catch (error) {
             return { success: false, error: String(error) }
         }

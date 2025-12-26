@@ -255,7 +255,7 @@ export async function getRecentHistory(
 
         // LanceDB doesn't have ORDER BY, so we fetch more and sort client-side
         const allRecords = await table
-            .search()
+            .query()
             .limit(limit * 3) // Fetch extra to account for sorting
             .toArray()
 
@@ -336,7 +336,7 @@ export async function getMemoryStats(contactId: string): Promise<{ messageCount:
             return { messageCount: 0, oldestTimestamp: null }
         }
 
-        const allRecords = await table.search().limit(1000).toArray()
+        const allRecords = await table.query().limit(1000).toArray()
 
         if (allRecords.length === 0) {
             return { messageCount: 0, oldestTimestamp: null }
@@ -365,7 +365,7 @@ export async function exportContactMemory(contactId: string): Promise<Conversati
         const table = await getContactTable(contactId)
         if (!table) return []
 
-        const allRecords = await table.search().limit(10000).toArray()
+        const allRecords = await table.query().limit(10000).toArray()
 
         // Return without vectors (they're huge)
         return allRecords.map((r: any) => ({

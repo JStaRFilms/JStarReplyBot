@@ -4,6 +4,9 @@ import { log } from './logger'
 import { retrieveContext } from './knowledge-base'
 import { getSettings, getCatalog } from './db'
 import { GlobalStyle } from '../shared/types'
+import { moodDetectionService } from './services/mood-detection.service'
+import { analyticsService } from './services/analytics.service'
+import { personalContextService } from './services/personal-context.service'
 
 // Lazy-initialized after dotenv loads
 let groq: ReturnType<typeof createGroq> | null = null
@@ -32,7 +35,9 @@ export async function generateAIReply(
     systemPrompt: string,
     history: { role: 'user' | 'model'; content: string }[] = [],
     multimodalContext?: string,
-    styleContext?: GlobalStyle
+    styleContext?: GlobalStyle,
+    contactId?: string,
+    contactName?: string
 ): Promise<AIReplyResult | null> {
     try {
         // Retrieve relevant context from knowledge base (RAG)
@@ -40,8 +45,51 @@ export async function generateAIReply(
 
         // Retrieve Settings (for Profile + Currency)
         const settings = await getSettings()
-        const { botName, currency, licenseKey, licenseStatus } = settings
+        const { botName, currency, licenseKey, licenseStatus, edition } = settings
         const profile = settings.businessProfile
+
+        // Personal Edition Features Integration
+        let personalContextBlock = ''
+        let moodContextBlock = ''
+        let responseGuidanceBlock = ''
+
+        if (edition === 'personal' && contactId) {
+            // 1. Mood Detection
+            const moodResult = await moodDetectionService.detectMood(userMessage, contactId)
+            if (moodResult.confidence > 0.5) {
+                moodContextBlock = `
+--- MOOD ANALYSIS ---
+Detected Emotion: ${moodResult.emotion} (Confidence: ${(moodResult.confidence * 100).toFixed(0)}%)
+Tone: ${moodResult.tone}
+Keywords: ${moodResult.keywords.join(', ')}
+Suggestions: ${moodResult.suggestions.join('; ')}
+--- END MOOD ANALYSIS ---`
+            }
+
+            // 2. Personal Context
+            const personalContext = await personalContextService.getPersonalContext(
+                contactId,
+                contactName,
+                userMessage
+            )
+
+            if (personalContext) {
+                personalContextBlock = `
+--- PERSONAL CONTEXT ---
+Contact Category: ${personalContext.category || 'General'}
+Personal Notes: ${personalContext.personalNotes.join('; ') || 'None'}
+Recent Topics: ${personalContext.conversationHistory.topics.join(', ') || 'None'}
+--- END PERSONAL CONTEXT ---`
+
+                // 3. Response Guidance
+                const toneAdjustment = personalContextService.getResponseToneAdjustment(personalContext)
+                responseGuidanceBlock = `
+--- RESPONSE GUIDANCE ---
+Preferred Tone: ${toneAdjustment.tone}
+Adjustments: ${toneAdjustment.adjustments.join('; ')}
+--- END RESPONSE GUIDANCE ---`
+            }
+        }
 
         // Retrieve Catalog (Lite Index)
         const catalog = await getCatalog()
@@ -91,8 +139,9 @@ ${profileBlock}
 ${catalogBlock}
 ${contextBlock}
 ${historyBlock}
-${contextBlock}
-${historyBlock}
+${moodContextBlock}
+${personalContextBlock}
+${responseGuidanceBlock}
 ${multimodalBlock}
 ${styleBlock}
 
@@ -108,10 +157,13 @@ IMPORTANT INSTRUCTIONS:
 9. Use natural, conversational language
 10. Match the specified Tone (${profile.tone}) in your writing style.
 11. If MEDIA CONTEXT is provided, TREAT IT AS DIRECT USER INPUT. Do NOT say "I see you sent an image" or "According to the analysis". React naturally. (e.g., If the image contains a "Merry Christmas" flyer, reply "Merry Christmas!"; if it shows a product, answer questions about it).
+12. USE PERSONAL CONTEXT when available to make responses more relevant and personalized. Consider the contact's category, mood, and preferences.
+13. ADJUST TONE based on mood detection and personal context guidance.
 
 Analyze the user's message for:
 - Sentiment level (low/medium/high frustration)
 - Product intent (what product/service they're asking about)
+- Mood and emotional state (if Personal edition)
 
 Respond with a helpful reply.`
 
@@ -171,6 +223,19 @@ Respond with a helpful reply.`
         // Analyze response for sentiment and product intent
         const sentiment = detectSentiment(userMessage)
         const productIntent = detectProductIntent(userMessage)
+
+        // Track analytics if Personal edition
+        if (edition === 'personal' && contactId) {
+            await analyticsService.trackMessage(
+                `msg_${Date.now()}`, // Generate message ID
+                'sent',
+                contactId,
+                contactName,
+                textResponse,
+                true, // wasAutoReplied
+                textResponse
+            )
+        }
 
         log('AI', `Generated reply (sentiment: ${sentiment}, product: ${productIntent || 'none'})`)
 
